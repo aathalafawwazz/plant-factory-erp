@@ -1,0 +1,315 @@
+"use client";
+
+import { useState, useEffect } from "react";
+import Link from "next/link";
+import { usePathname, useRouter } from "next/navigation";
+import { createClient } from "@/lib/supabase/client";
+import { useTheme } from "next-themes";
+import { useLang } from "@/lib/i18n";
+import {
+  LayoutDashboard, Grid3X3, Sprout, Scissors, Thermometer,
+  Droplets, Leaf, FileBarChart, Users, LogOut, ChevronDown,
+  ChevronLeft, ChevronRight,
+  Clock, BarChart3, Wallet, ShoppingCart, Sun, Moon, Monitor, CalendarDays,
+} from "lucide-react";
+import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
+import type { LucideIcon } from "lucide-react";
+
+interface NavItem {
+  href: string;
+  labelKey: string;
+  icon: LucideIcon;
+  mobile?: boolean;
+  children?: { href: string; labelKey: string }[];
+}
+
+const NAV_ITEMS: NavItem[] = [
+  { href: "/", labelKey: "nav.dashboard", icon: LayoutDashboard, mobile: true },
+  {
+    href: "/lubang",
+    labelKey: "nav.cultivation",
+    icon: Sprout,
+    mobile: true,
+    children: [
+      { href: "/lubang", labelKey: "nav.hole_map" },
+      { href: "/tanam", labelKey: "nav.plant_log" },
+      { href: "/panen", labelKey: "nav.harvest_log" },
+      { href: "/lingkungan", labelKey: "nav.env_log" },
+      { href: "/nutrisi", labelKey: "nav.nutrient_log" },
+      { href: "/komoditas", labelKey: "nav.commodity" },
+      { href: "/laporan", labelKey: "nav.report" },
+    ],
+  },
+  {
+    href: "/hr",
+    labelKey: "nav.hr",
+    icon: Users,
+    children: [
+      { href: "/hr", labelKey: "nav.hr_dashboard" },
+      { href: "/hr/absensi", labelKey: "nav.attendance" },
+      { href: "/hr/beban-kerja", labelKey: "nav.workload" },
+      { href: "/hr/penggajian", labelKey: "nav.payroll" },
+    ],
+  },
+  {
+    href: "/sales",
+    labelKey: "nav.sales",
+    icon: ShoppingCart,
+    mobile: true,
+    children: [
+      { href: "/sales", labelKey: "nav.sales_dashboard" },
+      { href: "/sales/pelanggan", labelKey: "nav.customers" },
+      { href: "/sales/order", labelKey: "nav.orders" },
+      { href: "/sales/log", labelKey: "nav.sales_log" },
+      { href: "/sales/laporan", labelKey: "nav.sales_report" },
+    ],
+  },
+  { href: "/kalender", labelKey: "nav.calendar", icon: CalendarDays, mobile: true },
+];
+
+const CULTIVATION_PATHS = ["/lubang", "/tanam", "/panen", "/lingkungan", "/nutrisi", "/komoditas", "/laporan"];
+
+function isGroupActive(item: NavItem, pathname: string): boolean {
+  if (item.children) {
+    return item.children.some((child) =>
+      child.href === "/" ? pathname === "/" : pathname.startsWith(child.href)
+    );
+  }
+  return item.href === "/" ? pathname === "/" : pathname.startsWith(item.href);
+}
+
+const MOBILE_ITEMS: { href: string; labelKey: string; icon: LucideIcon }[] = [
+  { href: "/", labelKey: "nav.dashboard", icon: LayoutDashboard },
+  { href: "/lubang", labelKey: "nav.cultivation", icon: Sprout },
+  { href: "/kalender", labelKey: "nav.calendar", icon: CalendarDays },
+  { href: "/sales", labelKey: "nav.sales", icon: ShoppingCart },
+];
+
+export function BottomNav() {
+  const pathname = usePathname();
+  const { t } = useLang();
+
+  return (
+    <nav className="fixed bottom-0 left-0 right-0 z-50 border-t border-border/50 bg-[oklch(0.11_0.005_260)] backdrop-blur-xl md:hidden">
+      <div className="flex items-center justify-around h-16">
+        {MOBILE_ITEMS.map((item) => {
+          const Icon = item.icon;
+          const isActive =
+            item.href === "/"
+              ? pathname === "/"
+              : item.labelKey === "nav.cultivation"
+              ? CULTIVATION_PATHS.some((p) => pathname.startsWith(p))
+              : pathname.startsWith(item.href);
+          return (
+            <Link
+              key={item.href}
+              href={item.href}
+              className={cn(
+                "flex flex-col items-center justify-center shrink-0 w-[72px] py-2 transition-all",
+                isActive
+                  ? "text-[oklch(0.65_0.18_260)]"
+                  : "text-muted-foreground hover:text-foreground"
+              )}
+            >
+              <Icon className="h-5 w-5 shrink-0" strokeWidth={isActive ? 2.5 : 1.5} />
+              <span
+                className={cn(
+                  "text-[10px] mt-1 leading-tight text-center truncate w-full px-1",
+                  isActive ? "font-semibold" : "font-normal"
+                )}
+              >
+                {t(item.labelKey)}
+              </span>
+            </Link>
+          );
+        })}
+      </div>
+    </nav>
+  );
+}
+
+export function DesktopSidebar({ displayName }: { displayName: string }) {
+  const pathname = usePathname();
+  const { t } = useLang();
+
+  const [collapsed, setCollapsed] = useState(false);
+
+  useEffect(() => {
+    const saved = localStorage.getItem("pfms-sidebar-collapsed");
+    if (saved === "true") setCollapsed(true);
+  }, []);
+
+  useEffect(() => {
+    document.documentElement.style.setProperty("--sidebar-width", collapsed ? "60px" : "220px");
+  }, [collapsed]);
+
+  function toggleCollapsed() {
+    setCollapsed((v) => {
+      localStorage.setItem("pfms-sidebar-collapsed", String(!v));
+      return !v;
+    });
+  }
+
+  const [openGroups, setOpenGroups] = useState<Set<string>>(
+    new Set(
+      NAV_ITEMS.filter((i) => i.children && isGroupActive(i, pathname)).map((i) => i.labelKey)
+    )
+  );
+
+  function toggleGroup(key: string) {
+    setOpenGroups((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  }
+
+  return (
+    <aside className={cn(
+      "hidden md:flex md:flex-col md:fixed md:inset-y-0 border-r border-border/50 bg-[oklch(0.11_0.005_260)] transition-all duration-200",
+      collapsed ? "md:w-[60px]" : "md:w-[220px]"
+    )}>
+      <div className="flex flex-col flex-1">
+        {/* Brand */}
+        <div className="px-4 py-4 border-b border-border/50">
+          <div className={cn("flex items-center", collapsed ? "justify-center" : "gap-2.5")}>
+            <div className="h-7 w-7 rounded-lg bg-[oklch(0.65_0.18_260)] flex items-center justify-center shrink-0">
+              <Sprout className="h-4 w-4 text-white" />
+            </div>
+            {!collapsed && (
+              <div>
+                <h1 className="text-sm font-semibold text-foreground leading-none">Plant Factory</h1>
+                <p className="text-[11px] text-muted-foreground mt-0.5">SARC UGM</p>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Navigation */}
+        <nav className="flex-1 px-2 py-2 space-y-0.5 overflow-y-auto scrollbar-none">
+          {NAV_ITEMS.map((item) => {
+            const Icon = item.icon;
+            const active = isGroupActive(item, pathname);
+            const hasChildren = item.children && item.children.length > 0;
+            const isExpanded = openGroups.has(item.labelKey);
+
+            if (hasChildren) {
+              if (collapsed) {
+                return (
+                  <Link
+                    key={item.labelKey}
+                    href={item.href}
+                    title={t(item.labelKey)}
+                    className={cn(
+                      "flex items-center justify-center w-full px-2.5 py-[7px] rounded-md text-[13px] transition-all group",
+                      active
+                        ? "bg-[oklch(0.65_0.18_260/0.12)] text-[oklch(0.75_0.15_260)] font-medium"
+                        : "text-muted-foreground hover:bg-secondary hover:text-foreground"
+                    )}
+                  >
+                    <Icon
+                      className={cn(
+                        "h-4 w-4 shrink-0",
+                        active
+                          ? "text-[oklch(0.65_0.18_260)]"
+                          : "text-muted-foreground group-hover:text-foreground"
+                      )}
+                    />
+                  </Link>
+                );
+              }
+
+              return (
+                <div key={item.labelKey}>
+                  <button
+                    onClick={() => toggleGroup(item.labelKey)}
+                    className={cn(
+                      "flex items-center justify-between w-full px-2.5 py-[7px] rounded-md text-[13px] transition-all group",
+                      active
+                        ? "bg-[oklch(0.65_0.18_260/0.12)] text-[oklch(0.75_0.15_260)] font-medium"
+                        : "text-muted-foreground hover:bg-secondary hover:text-foreground"
+                    )}
+                  >
+                    <div className="flex items-center gap-2.5">
+                      <Icon
+                        className={cn(
+                          "h-4 w-4 shrink-0",
+                          active
+                            ? "text-[oklch(0.65_0.18_260)]"
+                            : "text-muted-foreground group-hover:text-foreground"
+                        )}
+                      />
+                      <span>{t(item.labelKey)}</span>
+                    </div>
+                    <ChevronDown
+                      className={cn(
+                        "h-3.5 w-3.5 text-muted-foreground transition-transform",
+                        isExpanded && "rotate-180"
+                      )}
+                    />
+                  </button>
+                  {isExpanded && (
+                    <div className="ml-4 pl-3 border-l border-border/30 mt-0.5 space-y-0.5">
+                      {item.children!.map((child) => {
+                        const childActive = pathname === child.href;
+                        return (
+                          <Link
+                            key={child.href}
+                            href={child.href}
+                            className={cn(
+                              "block px-2.5 py-[6px] rounded-md text-[12px] transition-all",
+                              childActive
+                                ? "bg-[oklch(0.65_0.18_260/0.12)] text-[oklch(0.75_0.15_260)] font-medium"
+                                : "text-muted-foreground hover:bg-secondary hover:text-foreground"
+                            )}
+                          >
+                            {t(child.labelKey)}
+                          </Link>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              );
+            }
+
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                title={collapsed ? t(item.labelKey) : undefined}
+                className={cn(
+                  "flex items-center gap-2.5 px-2.5 py-[7px] rounded-md text-[13px] transition-all group",
+                  collapsed && "justify-center",
+                  active
+                    ? "bg-[oklch(0.65_0.18_260/0.12)] text-[oklch(0.75_0.15_260)] font-medium"
+                    : "text-muted-foreground hover:bg-secondary hover:text-foreground"
+                )}
+              >
+                <Icon
+                  className={cn(
+                    "h-4 w-4 shrink-0",
+                    active
+                      ? "text-[oklch(0.65_0.18_260)]"
+                      : "text-muted-foreground group-hover:text-foreground"
+                  )}
+                />
+                {!collapsed && <span>{t(item.labelKey)}</span>}
+              </Link>
+            );
+          })}
+        </nav>
+
+        {/* Toggle button */}
+        <button
+          onClick={toggleCollapsed}
+          className="w-full flex items-center justify-center h-10 border-t border-border/50 text-muted-foreground hover:text-foreground transition-colors"
+        >
+          {collapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
+        </button>
+      </div>
+    </aside>
+  );
+}

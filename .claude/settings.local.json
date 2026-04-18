@@ -1,0 +1,43 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(export PATH=\"/c/Users/Athala Fawwaz/AppData/Local/nvm/v20.20.2:/c/Users/Athala Fawwaz/AppData/Roaming/npm:$PATH\")",
+      "Bash(npx tsc:*)",
+      "Bash(npm run:*)",
+      "Bash(node_modules/.bin/tsc --noEmit --pretty)",
+      "Bash(node_modules/.bin/tsc --noEmit)",
+      "Read(//c/nvm4w/**)",
+      "Bash(export PATH=\"/c/nvm4w/nodejs:$PATH\")",
+      "Read(//c/Users/Athala Fawwaz/AppData/Local/nvm/**)",
+      "Read(//c/Users/Athala Fawwaz/AppData/Local/nvm//**)",
+      "Bash(export PATH=\"/c/Users/Athala Fawwaz/AppData/Local/nvm/v20.20.2:$PATH\")",
+      "Bash(node node_modules/.bin/tsc --noEmit)",
+      "Bash(node ./node_modules/typescript/bin/tsc --noEmit)",
+      "Bash(where node:*)",
+      "Bash(node node_modules/.bin/tsc --noEmit --pretty)",
+      "Bash(/c/nvm4w/nvm.exe which:*)",
+      "Bash(/c/nvm4w/nvm.exe list:*)",
+      "Bash(node node_modules/typescript/bin/tsc --noEmit --pretty)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:3001/)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:3001/hr)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:3001/hr/absensi)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:3001/hr/beban-kerja)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:3001/hr/penggajian)",
+      "Bash(curl -sI http://localhost:3001/)",
+      "Bash(where npm *)",
+      "Bash(npm install *)",
+      "Bash(export PATH=\"/c/Program Files/nodejs:$PATH\")",
+      "Bash(node node_modules/typescript/bin/tsc --noEmit)",
+      "Bash(cmd.exe /c \"node node_modules/.bin/tsc --noEmit --pretty 2>&1\")",
+      "Bash(\"/c/Users/Athala Fawwaz/AppData/Local/nvm/nvm.exe\" list)",
+      "Bash(cmd.exe /c \"cd /d D:\\\\Claude Code\\\\superpowers\\\\plant-factory-erp && npx tsc --noEmit 2>&1\")",
+      "Bash(\"/c/nvm4w/nodejs/node.exe\" \"D:/Claude Code/superpowers/plant-factory-erp/node_modules/.bin/../typescript/bin/tsc\" --noEmit --pretty --project \"D:/Claude Code/superpowers/plant-factory-erp/tsconfig.json\")",
+      "Bash(cmd.exe /c \"where node\")",
+      "Bash(bun tsc *)",
+      "Bash(node ./node_modules/.bin/tsc --noEmit --pretty)",
+      "Bash(where.exe node *)",
+      "Bash(where.exe npm *)",
+      "Bash(cmd.exe /c \"where npm\")"
+    ]
+  }
+}

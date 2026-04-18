@@ -1,0 +1,42 @@
+@theme {
+  /* Colors */
+  --color-background: #08090a;
+  --color-text: #8a8f98;
+  --color-text-muted: #f7f8f8;
+  --color-text-subtle: #ffffff;
+  --color-primary: #638cff;
+  --color-secondary: #55ccff;
+  --color-accent: #818fff;
+  --color-border: #d4d4d6;
+
+  /* Spacing */
+  --spacing-3xs: 1px;
+  --spacing-2xs: 28px;
+  --spacing-xs: 72px;
+  --spacing-sm: 88px;
+  --spacing-md: 104px;
+  --spacing-lg: 122px;
+  --spacing-xl: 284px;
+  --spacing-2xl: 385px;
+  --spacing-3xl: 460px;
+  --spacing-4xl: 478px;
+  --spacing-5xl: 552px;
+  --spacing-6xl: 576px;
+
+  /* Border Radius */
+  --radius-none: 0;
+  --radius-sm: 1px;
+  --radius-md: .3em;
+  --radius-lg: 10px;
+  --radius-xl: 20px;
+  --radius-full: 30px;
+
+  /* Fonts */
+  --font-inter-variable: "Inter Variable", sans-serif;
+  --font-sf-pro-display: "SF Pro Display", sans-serif;
+  --font-oxygen: "Oxygen", sans-serif;
+  --font-ubuntu: "Ubuntu", sans-serif;
+  --font-cantarell: "Cantarell", sans-serif;
+  --font-open-sans: "Open Sans", sans-serif;
+
+}
