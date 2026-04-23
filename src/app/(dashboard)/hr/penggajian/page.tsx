@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { useLang } from "@/lib/i18n";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -47,19 +48,19 @@ interface PayrollRow extends PayrollRecord {
 /*  Constants                                                          */
 /* ------------------------------------------------------------------ */
 
-const months = [
-  "Januari",
-  "Februari",
-  "Maret",
-  "April",
-  "Mei",
-  "Juni",
-  "Juli",
-  "Agustus",
-  "September",
-  "Oktober",
-  "November",
-  "Desember",
+const MONTH_KEYS = [
+  "month.jan",
+  "month.feb",
+  "month.mar",
+  "month.apr",
+  "month.may",
+  "month.jun",
+  "month.jul",
+  "month.aug",
+  "month.sep",
+  "month.oct",
+  "month.nov",
+  "month.dec",
 ];
 
 const STANDARD_MONTHLY_HOURS = 173;
@@ -73,22 +74,22 @@ const fmtCurrency = (amount: number) =>
     amount
   );
 
-function statusBadge(status: string) {
+function statusBadge(status: string, t: (key: string) => string) {
   switch (status) {
     case "approved":
       return (
         <Badge className="bg-sky-500/20 text-sky-400 border-sky-500/30 hover:bg-sky-500/30">
-          Approved
+          {t("pay.status_approved")}
         </Badge>
       );
     case "paid":
       return (
         <Badge className="bg-emerald-500/20 text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/30">
-          Paid
+          {t("pay.status_paid")}
         </Badge>
       );
     default:
-      return <Badge variant="secondary">Draft</Badge>;
+      return <Badge variant="secondary">{t("pay.status_draft")}</Badge>;
   }
 }
 
@@ -128,6 +129,7 @@ function downloadCSV(rows: Record<string, unknown>[], filename: string) {
 
 export default function PenggajianPage() {
   const supabase = createClient();
+  const { t } = useLang();
 
   const now = new Date();
   const [selectedMonth, setSelectedMonth] = useState(now.getMonth() + 1);
@@ -216,7 +218,7 @@ export default function PenggajianPage() {
       .select("*");
 
     if (!empDetails || empDetails.length === 0) {
-      toast.error("Tidak ada data karyawan");
+      toast.error(t("pay.no_employees"));
       setGenerating(false);
       return;
     }
@@ -291,16 +293,18 @@ export default function PenggajianPage() {
     }
 
     if (inserts.length === 0) {
-      toast.info("Semua karyawan sudah memiliki data penggajian untuk periode ini");
+      toast.info(t("pay.all_have_records"));
       setGenerating(false);
       return;
     }
 
     const { error } = await supabase.from("payroll_records").insert(inserts);
     if (error) {
-      toast.error("Gagal membuat data penggajian: " + error.message);
+      toast.error(t("pay.generate_failed") + ": " + error.message);
     } else {
-      toast.success(`Berhasil membuat ${inserts.length} data penggajian`);
+      toast.success(
+        `${t("pay.generate_success")} ${inserts.length} ${t("pay.records")}`
+      );
       await loadPayroll();
     }
 
@@ -341,9 +345,9 @@ export default function PenggajianPage() {
       .eq("id", editRow.id);
 
     if (error) {
-      toast.error("Gagal menyimpan: " + error.message);
+      toast.error(t("pay.save_failed") + ": " + error.message);
     } else {
-      toast.success("Data penggajian berhasil diperbarui");
+      toast.success(t("pay.update_success"));
       setEditRow(null);
       await loadPayroll();
     }
@@ -356,21 +360,21 @@ export default function PenggajianPage() {
 
   function exportCSV() {
     const rows = payrollRows.map((r) => ({
-      Nama: r.displayName,
-      Jabatan: r.position || "-",
-      Gaji_Pokok: r.base_salary,
-      Lembur: r.overtime_pay,
-      Tunjangan: r.allowances,
-      Potongan: r.deductions,
-      Total: r.total,
-      Status: r.status,
-      Catatan: r.notes || "",
+      [t("pay.name")]: r.displayName,
+      [t("pay.position")]: r.position || "-",
+      [t("pay.base_salary")]: r.base_salary,
+      [t("pay.overtime")]: r.overtime_pay,
+      [t("pay.allowances")]: r.allowances,
+      [t("pay.deductions")]: r.deductions,
+      [t("pay.total")]: r.total,
+      [t("pay.status")]: r.status,
+      [t("pay.notes")]: r.notes || "",
     }));
     downloadCSV(
       rows,
-      `penggajian-${months[selectedMonth - 1]}-${selectedYear}.csv`
+      `payroll-${t(MONTH_KEYS[selectedMonth - 1])}-${selectedYear}.csv`
     );
-    toast.success("CSV berhasil diekspor");
+    toast.success(t("pay.csv_exported"));
   }
 
   /* ---------------------------------------------------------------- */
@@ -388,30 +392,30 @@ export default function PenggajianPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-lg font-semibold text-foreground">Penggajian</h1>
+      <h1 className="text-lg font-semibold text-foreground">{t("pay.title")}</h1>
 
       {/* Period selectors + actions */}
       <div className="flex flex-wrap items-end gap-3">
         <div className="space-y-1">
-          <Label className="text-[13px] text-muted-foreground">Bulan</Label>
+          <Label className="text-[13px] text-muted-foreground">{t("pay.month")}</Label>
           <Select
             value={String(selectedMonth)}
             onValueChange={(v) => v !== null && setSelectedMonth(Number(v))}
           >
             <SelectTrigger className="w-[140px] h-9 bg-secondary border-border/50 text-[13px]">
-              <SelectValue>{months[selectedMonth - 1]}</SelectValue>
+              <SelectValue>{t(MONTH_KEYS[selectedMonth - 1])}</SelectValue>
             </SelectTrigger>
             <SelectContent>
-              {months.map((m, i) => (
+              {MONTH_KEYS.map((key, i) => (
                 <SelectItem key={i} value={String(i + 1)}>
-                  {m}
+                  {t(key)}
                 </SelectItem>
               ))}
             </SelectContent>
           </Select>
         </div>
         <div className="space-y-1">
-          <Label className="text-[13px] text-muted-foreground">Tahun</Label>
+          <Label className="text-[13px] text-muted-foreground">{t("pay.year")}</Label>
           <Select
             value={String(selectedYear)}
             onValueChange={(v) => v !== null && setSelectedYear(Number(v))}
@@ -429,14 +433,14 @@ export default function PenggajianPage() {
           </Select>
         </div>
         <Button
-          className="h-9 bg-[oklch(0.65_0.18_260)] text-white text-[13px] hover:bg-[oklch(0.60_0.20_260)]"
+          className="h-9 bg-primary text-white text-[13px] hover:bg-primary/90"
           onClick={generatePayroll}
           disabled={generating}
         >
           <RefreshCw
             className={`w-4 h-4 mr-1.5 ${generating ? "animate-spin" : ""}`}
           />
-          {generating ? "Memproses..." : "Generate Payroll"}
+          {generating ? t("pay.processing") : t("pay.generate")}
         </Button>
         <Button
           variant="outline"
@@ -445,7 +449,7 @@ export default function PenggajianPage() {
           disabled={payrollRows.length === 0}
         >
           <Download className="w-4 h-4 mr-1.5" />
-          Ekspor CSV
+          {t("pay.export_csv")}
         </Button>
       </div>
 
@@ -453,7 +457,7 @@ export default function PenggajianPage() {
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <Card className="rounded-xl border border-border/40 bg-card">
           <CardContent className="p-4">
-            <p className="text-xs text-muted-foreground">Total Pengeluaran</p>
+            <p className="text-xs text-muted-foreground">{t("pay.total_expenditure")}</p>
             <p className="text-xl font-bold mt-1 text-foreground">
               {fmtCurrency(totalExpenditure)}
             </p>
@@ -461,7 +465,7 @@ export default function PenggajianPage() {
         </Card>
         <Card className="rounded-xl border border-border/40 bg-card">
           <CardContent className="p-4">
-            <p className="text-xs text-muted-foreground">Rata-rata Gaji</p>
+            <p className="text-xs text-muted-foreground">{t("pay.avg_salary")}</p>
             <p className="text-xl font-bold mt-1 text-foreground">
               {fmtCurrency(avgSalary)}
             </p>
@@ -469,7 +473,7 @@ export default function PenggajianPage() {
         </Card>
         <Card className="rounded-xl border border-border/40 bg-card">
           <CardContent className="p-4">
-            <p className="text-xs text-muted-foreground">Karyawan Terbayar</p>
+            <p className="text-xs text-muted-foreground">{t("pay.paid_employees")}</p>
             <p className="text-xl font-bold mt-1 text-foreground">
               {paidCount}
               <span className="text-sm font-normal text-muted-foreground ml-1">
@@ -484,7 +488,7 @@ export default function PenggajianPage() {
       {loading ? (
         <Card className="rounded-xl border border-border/40 bg-card">
           <CardContent className="py-12 text-center text-muted-foreground">
-            Memuat data penggajian...
+            {t("pay.loading")}
           </CardContent>
         </Card>
       ) : payrollRows.length === 0 ? (
@@ -492,11 +496,11 @@ export default function PenggajianPage() {
           <CardContent className="py-16 text-center">
             <Wallet className="w-10 h-10 text-muted-foreground/40 mx-auto mb-3" />
             <p className="text-sm text-muted-foreground">
-              Belum ada data penggajian untuk {months[selectedMonth - 1]}{" "}
+              {t("pay.no_data")} {t(MONTH_KEYS[selectedMonth - 1])}{" "}
               {selectedYear}.
             </p>
             <p className="text-xs text-muted-foreground mt-1">
-              Klik &quot;Generate Payroll&quot; untuk membuat data.
+              {t("pay.click_generate")}
             </p>
           </CardContent>
         </Card>
@@ -506,28 +510,28 @@ export default function PenggajianPage() {
             <TableHeader>
               <TableRow>
                 <TableHead className="text-[12px] text-muted-foreground">
-                  Nama
+                  {t("pay.name")}
                 </TableHead>
                 <TableHead className="text-[12px] text-muted-foreground">
-                  Jabatan
+                  {t("pay.position")}
                 </TableHead>
                 <TableHead className="text-[12px] text-muted-foreground text-right">
-                  Gaji Pokok
+                  {t("pay.base_salary")}
                 </TableHead>
                 <TableHead className="text-[12px] text-muted-foreground text-right">
-                  Lembur
+                  {t("pay.overtime")}
                 </TableHead>
                 <TableHead className="text-[12px] text-muted-foreground text-right">
-                  Tunjangan
+                  {t("pay.allowances")}
                 </TableHead>
                 <TableHead className="text-[12px] text-muted-foreground text-right">
-                  Potongan
+                  {t("pay.deductions")}
                 </TableHead>
                 <TableHead className="text-[12px] text-muted-foreground text-right">
-                  Total
+                  {t("pay.total")}
                 </TableHead>
                 <TableHead className="text-[12px] text-muted-foreground">
-                  Status
+                  {t("pay.status")}
                 </TableHead>
               </TableRow>
             </TableHeader>
@@ -559,7 +563,7 @@ export default function PenggajianPage() {
                   <TableCell className="text-[13px] text-right font-medium">
                     {fmtCurrency(row.total)}
                   </TableCell>
-                  <TableCell>{statusBadge(row.status)}</TableCell>
+                  <TableCell>{statusBadge(row.status, t)}</TableCell>
                 </TableRow>
               ))}
             </TableBody>
@@ -576,7 +580,7 @@ export default function PenggajianPage() {
       >
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Edit Penggajian</DialogTitle>
+            <DialogTitle>{t("pay.edit_title")}</DialogTitle>
           </DialogHeader>
 
           {editRow && (
@@ -587,7 +591,7 @@ export default function PenggajianPage() {
                   {editRow.displayName}
                 </p>
                 <p className="text-[12px] text-muted-foreground">
-                  {editRow.position || "-"} | Gaji Pokok:{" "}
+                  {editRow.position || "-"} | {t("pay.base_salary")}:{" "}
                   {fmtCurrency(editRow.base_salary)}
                 </p>
               </div>
@@ -598,7 +602,7 @@ export default function PenggajianPage() {
               <div className="space-y-3">
                 <div className="space-y-1.5">
                   <Label className="text-[13px] text-muted-foreground">
-                    Lembur (Rp)
+                    {t("pay.overtime_idr")}
                   </Label>
                   <Input
                     type="number"
@@ -611,7 +615,7 @@ export default function PenggajianPage() {
                 </div>
                 <div className="space-y-1.5">
                   <Label className="text-[13px] text-muted-foreground">
-                    Tunjangan (Rp)
+                    {t("pay.allowances_idr")}
                   </Label>
                   <Input
                     type="number"
@@ -624,7 +628,7 @@ export default function PenggajianPage() {
                 </div>
                 <div className="space-y-1.5">
                   <Label className="text-[13px] text-muted-foreground">
-                    Potongan (Rp)
+                    {t("pay.deductions_idr")}
                   </Label>
                   <Input
                     type="number"
@@ -637,18 +641,18 @@ export default function PenggajianPage() {
                 </div>
                 <div className="space-y-1.5">
                   <Label className="text-[13px] text-muted-foreground">
-                    Catatan
+                    {t("pay.notes")}
                   </Label>
                   <Textarea
                     className="min-h-[60px] bg-secondary border-border/50"
                     value={editNotes}
                     onChange={(e) => setEditNotes(e.target.value)}
-                    placeholder="Catatan tambahan..."
+                    placeholder={t("pay.notes_placeholder")}
                   />
                 </div>
                 <div className="space-y-1.5">
                   <Label className="text-[13px] text-muted-foreground">
-                    Status
+                    {t("pay.status")}
                   </Label>
                   <Select
                     value={editStatus}
@@ -657,16 +661,16 @@ export default function PenggajianPage() {
                     <SelectTrigger className="h-10 bg-secondary border-border/50 text-[13px]">
                       <SelectValue>
                         {editStatus === "draft"
-                          ? "Draft"
+                          ? t("pay.status_draft")
                           : editStatus === "approved"
-                            ? "Approved"
-                            : "Paid"}
+                            ? t("pay.status_approved")
+                            : t("pay.status_paid")}
                       </SelectValue>
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="draft">Draft</SelectItem>
-                      <SelectItem value="approved">Approved</SelectItem>
-                      <SelectItem value="paid">Paid</SelectItem>
+                      <SelectItem value="draft">{t("pay.status_draft")}</SelectItem>
+                      <SelectItem value="approved">{t("pay.status_approved")}</SelectItem>
+                      <SelectItem value="paid">{t("pay.status_paid")}</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -677,7 +681,7 @@ export default function PenggajianPage() {
               {/* Total */}
               <div className="flex items-center justify-between">
                 <span className="text-[13px] text-muted-foreground">
-                  Total Gaji
+                  {t("pay.total_salary")}
                 </span>
                 <span className="text-lg font-bold text-foreground">
                   {fmtCurrency(editTotal)}
@@ -686,11 +690,11 @@ export default function PenggajianPage() {
 
               {/* Save button */}
               <Button
-                className="w-full h-10 bg-[oklch(0.65_0.18_260)] text-white text-[13px] hover:bg-[oklch(0.60_0.20_260)]"
+                className="w-full h-10 bg-primary text-white text-[13px] hover:bg-primary/90"
                 onClick={saveEdit}
                 disabled={saving}
               >
-                {saving ? "Menyimpan..." : "Simpan Perubahan"}
+                {saving ? t("common.saving") : t("pay.save_changes")}
               </Button>
             </div>
           )}

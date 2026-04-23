@@ -5,6 +5,9 @@ import { createClient } from "@/lib/supabase/client";
 import { Badge } from "@/components/ui/badge";
 import { ShoppingCart, AlertTriangle } from "lucide-react";
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid } from "recharts";
+import { useChartTheme } from "@/lib/use-chart-theme";
+import { useLang } from "@/lib/i18n";
+import { translateCommodity, formatDateLocale } from "@/lib/translate-helpers";
 
 type OrderRow = {
   id: number;
@@ -53,6 +56,16 @@ function formatCurrency(amount: number) {
 
 export default function SalesDashboardPage() {
   const supabase = createClient();
+  const chartTheme = useChartTheme();
+  const { t, lang } = useLang();
+
+  const ORDER_STATUS_LABELS: Record<string, string> = {
+    pending: t("sales.menunggu"),
+    confirmed: t("sales.dikonfirmasi"),
+    delivered: t("sales.dikirim"),
+    paid: t("sales.lunas"),
+    cancelled: t("sales.dibatalkan"),
+  };
 
   const [orders, setOrders] = useState<OrderRow[]>([]);
   const [items, setItems] = useState<OrderItemRow[]>([]);
@@ -174,7 +187,7 @@ export default function SalesDashboardPage() {
     const d = new Date();
     d.setDate(d.getDate() - i);
     const dateStr = d.toISOString().split("T")[0];
-    const dayLabel = d.toLocaleDateString("id-ID", { day: "2-digit", month: "short" });
+    const dayLabel = formatDateLocale(d, lang, { day: "2-digit", month: "short" });
     const dayRevenue = orders
       .filter((o) => {
         const od = o.order_date?.split("T")[0] ?? "";
@@ -213,7 +226,7 @@ export default function SalesDashboardPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64 text-muted-foreground text-sm">
-        Memuat data...
+        {t("common.loading")}
       </div>
     );
   }
@@ -223,10 +236,10 @@ export default function SalesDashboardPage() {
       {/* Header */}
       <div>
         <h1 className="text-lg font-semibold text-foreground">
-          Sales Dashboard
+          {t("sales.dashboard")}
         </h1>
         <p className="text-[13px] text-muted-foreground mt-0.5">
-          Ringkasan penjualan bulan ini
+          {t("sales.dashboard_subtitle")}
         </p>
       </div>
 
@@ -235,19 +248,19 @@ export default function SalesDashboardPage() {
         <div className="rounded-lg border border-border/40 bg-card p-4">
           <div className="flex items-center gap-2 text-muted-foreground text-[12px] mb-1">
             <ShoppingCart className="size-4" />
-            Total Revenue Bulan Ini
+            {t("sales.total_revenue_month")}
           </div>
           <div className="text-2xl font-semibold">{formatCurrency(totalRevenue)}</div>
         </div>
         <div className="rounded-lg border border-border/40 bg-card p-4">
           <div className="text-muted-foreground text-[12px] mb-1">
-            Jumlah Order
+            {t("sales.order_count")}
           </div>
           <div className="text-2xl font-semibold">{orderCount}</div>
         </div>
         <div className="rounded-lg border border-border/40 bg-card p-4">
           <div className="text-muted-foreground text-[12px] mb-1">
-            Pelanggan Aktif
+            {t("sales.active_customers")}
           </div>
           <div className="text-2xl font-semibold">{activeCustomers}</div>
         </div>
@@ -257,19 +270,19 @@ export default function SalesDashboardPage() {
       <div className="rounded-lg border border-border/40 bg-card">
         <div className="px-4 py-3 border-b border-border/30 flex items-center justify-between">
           <h3 className="text-[13px] font-semibold text-foreground">
-            Stok per Komoditas
+            {t("sales.stock_per_crop")}
           </h3>
           {lowStockCount > 0 && (
             <Badge className="bg-red-500/20 text-red-400 border-0 text-[11px] flex items-center gap-1">
               <AlertTriangle className="size-3" />
-              Stok Menipis ({lowStockCount})
+              {t("inv.low_stock")} ({lowStockCount})
             </Badge>
           )}
         </div>
         <div className="p-4">
           {stockPerCrop.length === 0 ? (
             <p className="text-[13px] text-muted-foreground">
-              Belum ada data stok.
+              {t("sales.no_stock_data")}
             </p>
           ) : (
             <div className="space-y-1">
@@ -281,7 +294,7 @@ export default function SalesDashboardPage() {
                   <div className="flex items-center gap-2">
                     <span className={`size-2 rounded-full ${stockDotColor(crop.stock)}`} />
                     <span className="text-[13px] font-medium text-foreground">
-                      {crop.name}
+                      {translateCommodity(crop.name, lang)}
                     </span>
                   </div>
                   <Badge className={`${stockColor(crop.stock)} border-0 text-[11px]`}>
@@ -300,20 +313,20 @@ export default function SalesDashboardPage() {
           <div className="px-4 py-3 border-b border-amber-500/20">
             <h3 className="text-[13px] font-semibold text-amber-400 flex items-center gap-2">
               <AlertTriangle className="size-4" />
-              Peringatan
+              {t("sales.alerts")}
             </h3>
           </div>
           <div className="p-4 grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div className="rounded-lg border border-border/30 bg-card p-3">
-              <p className="text-[11px] text-muted-foreground">Order Pending</p>
+              <p className="text-[11px] text-muted-foreground">{t("sales.pending_orders")}</p>
               <p className="text-xl font-semibold text-amber-400">{pendingOrderCount}</p>
             </div>
             <div className="rounded-lg border border-border/30 bg-card p-3">
-              <p className="text-[11px] text-muted-foreground">Invoice Overdue</p>
+              <p className="text-[11px] text-muted-foreground">{t("sales.overdue_invoices")}</p>
               <p className="text-xl font-semibold text-red-400">{overdueInvoiceCount}</p>
             </div>
             <div className="rounded-lg border border-border/30 bg-card p-3">
-              <p className="text-[11px] text-muted-foreground">Stok Rendah (&lt;1kg)</p>
+              <p className="text-[11px] text-muted-foreground">{t("sales.low_stock_lt1")}</p>
               <p className="text-xl font-semibold text-red-400">{lowStockCount}</p>
             </div>
           </div>
@@ -326,7 +339,7 @@ export default function SalesDashboardPage() {
         <div className="rounded-lg border border-border/40 bg-card">
           <div className="px-4 py-3 border-b border-border/30">
             <h3 className="text-[13px] font-semibold text-foreground">
-              Revenue 14 Hari Terakhir
+              {t("sales.revenue_14d")}
             </h3>
           </div>
           <div className="p-4">
@@ -338,11 +351,11 @@ export default function SalesDashboardPage() {
                     <stop offset="100%" stopColor="#638cff" stopOpacity={0} />
                   </linearGradient>
                 </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="#2a2f3a" />
-                <XAxis dataKey="date" tick={{ fontSize: 10, fill: '#8a8f98' }} axisLine={false} tickLine={false} />
-                <YAxis tick={{ fontSize: 10, fill: '#8a8f98' }} axisLine={false} tickLine={false} tickFormatter={(v) => `${(v/1000).toFixed(0)}k`} />
+                <CartesianGrid strokeDasharray="3 3" stroke={chartTheme.grid} />
+                <XAxis dataKey="date" tick={{ fontSize: 10, fill: chartTheme.axis }} axisLine={false} tickLine={false} />
+                <YAxis tick={{ fontSize: 10, fill: chartTheme.axis }} axisLine={false} tickLine={false} tickFormatter={(v) => `${(v/1000).toFixed(0)}k`} />
                 <Tooltip
-                  contentStyle={{ backgroundColor: '#161b22', border: '1px solid #2a2f3a', borderRadius: '8px', fontSize: '12px', color: '#f7f8f8' }}
+                  contentStyle={chartTheme.tooltip}
                   formatter={(v) => [formatCurrency(Number(v)), 'Revenue']}
                 />
                 <Area type="monotone" dataKey="revenue" stroke="#638cff" strokeWidth={2} fill="url(#revenueGrad)" dot={{ fill: '#638cff', r: 3 }} />
@@ -355,13 +368,13 @@ export default function SalesDashboardPage() {
         <div className="rounded-lg border border-border/40 bg-card">
           <div className="px-4 py-3 border-b border-border/30">
             <h3 className="text-[13px] font-semibold text-foreground">
-              Top 5 Komoditas
+              {t("sales.top_5_crops")}
             </h3>
           </div>
           <div className="p-4">
             {topCrops.length === 0 ? (
               <p className="text-[13px] text-muted-foreground">
-                Belum ada data penjualan.
+                {t("sales.no_sales_data")}
               </p>
             ) : (
               <div className="space-y-1">
@@ -375,7 +388,7 @@ export default function SalesDashboardPage() {
                         {i + 1}.
                       </span>
                       <span className="text-[13px] font-medium text-foreground">
-                        {crop.name}
+                        {translateCommodity(crop.name, lang)}
                       </span>
                       <span className="text-[11px] text-muted-foreground">
                         {crop.kgSold.toFixed(1)} kg
@@ -396,13 +409,13 @@ export default function SalesDashboardPage() {
       <div className="rounded-lg border border-border/40 bg-card">
         <div className="px-4 py-3 border-b border-border/30">
           <h3 className="text-[13px] font-semibold text-foreground">
-            Order Terbaru
+            {t("sales.recent_orders")}
           </h3>
         </div>
         <div className="p-4">
           {recentOrders.length === 0 ? (
             <p className="text-[13px] text-muted-foreground">
-              Belum ada order.
+              {t("sales.no_orders")}
             </p>
           ) : (
             <div className="space-y-1">
@@ -411,9 +424,10 @@ export default function SalesDashboardPage() {
                   label: order.status,
                   color: "bg-zinc-500/20 text-zinc-400",
                 };
+                const statusLabel = ORDER_STATUS_LABELS[order.status] ?? statusInfo.label;
                 const customerName =
                   (order.customers as { name: string } | null)?.name ??
-                  "Pelanggan";
+                  t("sales.customer_default");
                 return (
                   <div
                     key={order.id}
@@ -421,7 +435,7 @@ export default function SalesDashboardPage() {
                   >
                     <div className="flex items-center gap-3">
                       <span className="text-[12px] text-muted-foreground w-20">
-                        {new Date(order.order_date).toLocaleDateString("id-ID", {
+                        {formatDateLocale(order.order_date, lang, {
                           day: "2-digit",
                           month: "short",
                         })}
@@ -437,7 +451,7 @@ export default function SalesDashboardPage() {
                       <Badge
                         className={`${statusInfo.color} border-0 text-[11px]`}
                       >
-                        {statusInfo.label}
+                        {statusLabel}
                       </Badge>
                     </div>
                   </div>

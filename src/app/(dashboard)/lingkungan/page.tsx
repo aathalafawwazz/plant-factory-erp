@@ -17,6 +17,8 @@ import { Separator } from "@/components/ui/separator";
 import { ArrowUpDown, List, LayoutGrid, Thermometer, BarChart3, Download } from "lucide-react";
 import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, Legend } from "recharts";
 import type { EnvironmentalLog } from "@/lib/types/database";
+import { useChartTheme } from "@/lib/use-chart-theme";
+import { useLang } from "@/lib/i18n";
 
 type SortKey = "date_desc" | "date_asc" | "temp_desc" | "humidity_desc" | "co2_desc" | "vpd_desc" | "ppfd_desc";
 type ViewMode = "list" | "grid";
@@ -37,18 +39,20 @@ function downloadCSV(rows: Record<string, unknown>[], filename: string) {
   URL.revokeObjectURL(url);
 }
 
-const SORT_LABELS: Record<SortKey, string> = {
-  date_desc: "Terbaru",
-  date_asc: "Terlama",
-  temp_desc: "Suhu Tertinggi",
-  humidity_desc: "Kelembaban Tertinggi",
-  co2_desc: "CO2 Tertinggi",
-  vpd_desc: "VPD Tertinggi",
-  ppfd_desc: "PPFD Tertinggi",
+const SORT_LABEL_KEYS: Record<SortKey, string> = {
+  date_desc: "env.sort_newest",
+  date_asc: "env.sort_oldest",
+  temp_desc: "env.sort_temp_high",
+  humidity_desc: "env.sort_humidity_high",
+  co2_desc: "env.sort_co2_high",
+  vpd_desc: "env.sort_vpd_high",
+  ppfd_desc: "env.sort_ppfd_high",
 };
 
 export default function EnvironmentalLogPage() {
   const supabase = createClient();
+  const chartTheme = useChartTheme();
+  const { t } = useLang();
 
   const [logs, setLogs] = useState<EnvironmentalLog[]>([]);
   const [loading, setLoading] = useState(true);
@@ -167,7 +171,7 @@ export default function EnvironmentalLogPage() {
   }
 
   function fmtLoc(log: EnvironmentalLog) {
-    return log.rack ? `Rak ${log.rack}${log.tier ? ` T${log.tier}` : ""}` : "Ruangan";
+    return log.rack ? `${t("cult.rack")} ${log.rack}${log.tier ? ` T${log.tier}` : ""}` : t("env.room");
   }
 
   function handleExportCSV() {
@@ -184,14 +188,14 @@ export default function EnvironmentalLogPage() {
     downloadCSV(rows, `log-lingkungan-${new Date().toISOString().slice(0, 10)}.csv`);
   }
 
-  if (loading) return <div className="text-center py-12 text-muted-foreground">Memuat...</div>;
+  if (loading) return <div className="text-center py-12 text-muted-foreground">{t("common.loading")}</div>;
 
   return (
     <div>
       <div className="flex items-center justify-between mb-4">
-        <h1 className="text-lg font-semibold text-foreground">Log Lingkungan</h1>
+        <h1 className="text-lg font-semibold text-foreground">{t("env.log_env")}</h1>
         <Link href="/lingkungan/baru">
-          <Button className="h-9 bg-[oklch(0.65_0.18_260)] hover:bg-[oklch(0.60_0.20_260)] text-white text-[13px]">+ Catat Baru</Button>
+          <Button className="h-9 bg-primary hover:bg-primary/90 text-white text-[13px]">{t("cult.record_new")}</Button>
         </Link>
       </div>
 
@@ -201,8 +205,8 @@ export default function EnvironmentalLogPage() {
         return (
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2 mb-4">
             {[
-              { label: "Suhu", value: latestLog.temperature_c, unit: "°C", color: "#ef4444" },
-              { label: "Kelembaban", value: latestLog.humidity_pct, unit: "%RH", color: "#638cff" },
+              { label: t("env.temperature"), value: latestLog.temperature_c, unit: "°C", color: "#ef4444" },
+              { label: t("env.humidity"), value: latestLog.humidity_pct, unit: "%RH", color: "#638cff" },
               { label: "CO2", value: latestLog.co2_ppm, unit: "ppm", color: "#a78bfa" },
               { label: "VPD", value: latestLog.vpd_kpa, unit: "kPa", color: "#4ade80" },
               { label: "PPFD", value: latestLog.ppfd_umol, unit: "μmol", color: "#22d3ee" },
@@ -227,15 +231,15 @@ export default function EnvironmentalLogPage() {
             <Select value={chartRange} onValueChange={(v) => v !== null && setChartRange(v as typeof chartRange)}>
               <SelectTrigger className="h-8 bg-secondary border-border/50 text-[11px] w-[120px]">
                 <SelectValue>
-                  {({ "1d": "1 Hari", "7d": "7 Hari", "1m": "1 Bulan", "1y": "1 Tahun", custom: "Kustom" } as Record<string, string>)[chartRange]}
+                  {({ "1d": t("env.range_1d"), "7d": t("env.range_7d"), "1m": t("env.range_1m"), "1y": t("env.range_1y"), custom: t("env.range_custom") } as Record<string, string>)[chartRange]}
                 </SelectValue>
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="1d">1 Hari</SelectItem>
-                <SelectItem value="7d">7 Hari</SelectItem>
-                <SelectItem value="1m">1 Bulan</SelectItem>
-                <SelectItem value="1y">1 Tahun</SelectItem>
-                <SelectItem value="custom">Kustom</SelectItem>
+                <SelectItem value="1d">{t("env.range_1d")}</SelectItem>
+                <SelectItem value="7d">{t("env.range_7d")}</SelectItem>
+                <SelectItem value="1m">{t("env.range_1m")}</SelectItem>
+                <SelectItem value="1y">{t("env.range_1y")}</SelectItem>
+                <SelectItem value="custom">{t("env.range_custom")}</SelectItem>
               </SelectContent>
             </Select>
 
@@ -253,18 +257,18 @@ export default function EnvironmentalLogPage() {
             <Select value={chartLocation} onValueChange={(v) => v !== null && setChartLocation(v)}>
               <SelectTrigger className="h-8 bg-secondary border-border/50 text-[11px] w-[130px]">
                 <SelectValue>
-                  {({ all: "Semua Lokasi", room: "Ruangan", "A-1": "Rak A T1", "A-2": "Rak A T2", "A-3": "Rak A T3", "B-1": "Rak B T1", "B-2": "Rak B T2", "B-3": "Rak B T3" } as Record<string, string>)[chartLocation]}
+                  {({ all: t("env.all_locations"), room: t("env.room"), "A-1": `${t("cult.rack")} A T1`, "A-2": `${t("cult.rack")} A T2`, "A-3": `${t("cult.rack")} A T3`, "B-1": `${t("cult.rack")} B T1`, "B-2": `${t("cult.rack")} B T2`, "B-3": `${t("cult.rack")} B T3` } as Record<string, string>)[chartLocation]}
                 </SelectValue>
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">Semua Lokasi</SelectItem>
-                <SelectItem value="room">Ruangan</SelectItem>
-                <SelectItem value="A-1">Rak A T1</SelectItem>
-                <SelectItem value="A-2">Rak A T2</SelectItem>
-                <SelectItem value="A-3">Rak A T3</SelectItem>
-                <SelectItem value="B-1">Rak B T1</SelectItem>
-                <SelectItem value="B-2">Rak B T2</SelectItem>
-                <SelectItem value="B-3">Rak B T3</SelectItem>
+                <SelectItem value="all">{t("env.all_locations")}</SelectItem>
+                <SelectItem value="room">{t("env.room")}</SelectItem>
+                <SelectItem value="A-1">{t("cult.rack")} A T1</SelectItem>
+                <SelectItem value="A-2">{t("cult.rack")} A T2</SelectItem>
+                <SelectItem value="A-3">{t("cult.rack")} A T3</SelectItem>
+                <SelectItem value="B-1">{t("cult.rack")} B T1</SelectItem>
+                <SelectItem value="B-2">{t("cult.rack")} B T2</SelectItem>
+                <SelectItem value="B-3">{t("cult.rack")} B T3</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -272,16 +276,16 @@ export default function EnvironmentalLogPage() {
           <div className="rounded-lg border border-border/40 bg-card p-4">
             <ResponsiveContainer width="100%" height={250}>
               <LineChart data={chartData} margin={{ top: 5, right: 10, left: 0, bottom: 5 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#2a2f3a" />
-                <XAxis dataKey="time" tick={{ fontSize: 11, fill: '#888' }} interval="preserveStartEnd" />
-                <YAxis yAxisId="left" tick={{ fontSize: 11, fill: '#888' }} />
-                <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 11, fill: '#888' }} />
+                <CartesianGrid strokeDasharray="3 3" stroke={chartTheme.grid} />
+                <XAxis dataKey="time" tick={{ fontSize: 11, fill: chartTheme.axis }} interval="preserveStartEnd" />
+                <YAxis yAxisId="left" tick={{ fontSize: 11, fill: chartTheme.axis }} />
+                <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 11, fill: chartTheme.axis }} />
                 <Tooltip
-                  contentStyle={{ backgroundColor: '#161b22', border: '1px solid #2a2f3a', borderRadius: '8px', fontSize: '12px', color: '#f7f8f8' }}
+                  contentStyle={chartTheme.tooltip}
                   formatter={(v) => [String(v), '']}
                 />
                 <Legend wrapperStyle={{ fontSize: '12px' }} />
-                <Line yAxisId="left" type="monotone" dataKey="suhu" name="Suhu (°C)" stroke="#f59e0b" dot={false} strokeWidth={2} />
+                <Line yAxisId="left" type="monotone" dataKey="suhu" name={`${t("env.temperature")} (°C)`} stroke="#f59e0b" dot={false} strokeWidth={2} />
                 <Line yAxisId="left" type="monotone" dataKey="rh" name="RH (%)" stroke="#638cff" dot={false} strokeWidth={2} />
                 <Line yAxisId="right" type="monotone" dataKey="co2" name="CO2 (ppm)" stroke="#4ade80" dot={false} strokeWidth={2} />
                 <Line yAxisId="left" type="monotone" dataKey="vpd" name="VPD (kPa)" stroke="#a78bfa" dot={false} strokeWidth={2} />
@@ -298,16 +302,16 @@ export default function EnvironmentalLogPage() {
           <ArrowUpDown className="h-3.5 w-3.5 text-muted-foreground" />
           <Select value={sortKey} onValueChange={(v) => v !== null && setSortKey(v as SortKey)}>
             <SelectTrigger className="h-8 bg-secondary border-border/50 text-[12px] w-[180px]">
-              <SelectValue>{SORT_LABELS[sortKey]}</SelectValue>
+              <SelectValue>{t(SORT_LABEL_KEYS[sortKey])}</SelectValue>
             </SelectTrigger>
             <SelectContent>
-              {Object.entries(SORT_LABELS).map(([k, label]) => (
-                <SelectItem key={k} value={k}>{label}</SelectItem>
+              {Object.entries(SORT_LABEL_KEYS).map(([k, key]) => (
+                <SelectItem key={k} value={k}>{t(key)}</SelectItem>
               ))}
             </SelectContent>
           </Select>
           <Button variant="outline" size="sm" className="h-8 text-[12px]" onClick={handleExportCSV}>
-            <Download className="h-3.5 w-3.5 mr-1" /> Ekspor CSV
+            <Download className="h-3.5 w-3.5 mr-1" /> {t("env.export_csv")}
           </Button>
         </div>
         <div className="flex items-center gap-1">
@@ -322,22 +326,22 @@ export default function EnvironmentalLogPage() {
 
       {sortedLogs.length === 0 ? (
         <Card className="bg-card">
-          <CardContent className="py-12 text-center text-muted-foreground">Belum ada data log lingkungan.</CardContent>
+          <CardContent className="py-12 text-center text-muted-foreground">{t("env.no_log")}</CardContent>
         </Card>
       ) : viewMode === "list" ? (
         <div className="rounded-lg border border-border/40 bg-card overflow-hidden overflow-x-auto">
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead className="text-[12px] text-muted-foreground">Waktu</TableHead>
-                <TableHead className="text-[12px] text-muted-foreground">Lokasi</TableHead>
-                <TableHead className="text-[12px] text-muted-foreground">Suhu (°C)</TableHead>
+                <TableHead className="text-[12px] text-muted-foreground">{t("common.time")}</TableHead>
+                <TableHead className="text-[12px] text-muted-foreground">{t("env.location")}</TableHead>
+                <TableHead className="text-[12px] text-muted-foreground">{t("env.temperature")} (°C)</TableHead>
                 <TableHead className="text-[12px] text-muted-foreground">RH (%)</TableHead>
                 <TableHead className="text-[12px] text-muted-foreground">CO2 (ppm)</TableHead>
                 <TableHead className="text-[12px] text-muted-foreground">VPD (kPa)</TableHead>
                 <TableHead className="text-[12px] text-muted-foreground">PPFD (μmol)</TableHead>
-                <TableHead className="text-[12px] text-muted-foreground">Peralatan</TableHead>
-                <TableHead className="text-[12px] text-muted-foreground">Catatan</TableHead>
+                <TableHead className="text-[12px] text-muted-foreground">{t("env.equipment")}</TableHead>
+                <TableHead className="text-[12px] text-muted-foreground">{t("common.notes")}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -353,17 +357,17 @@ export default function EnvironmentalLogPage() {
                   <TableCell>
                     <div className="flex gap-1">
                       {log.growlight_on !== null && (
-                        <Badge variant="secondary" className={`text-[10px] text-white ${log.growlight_on ? "bg-[oklch(0.45_0.16_150)]" : "bg-secondary"}`}>
+                        <Badge variant="secondary" className={`text-[10px] text-white ${log.growlight_on ? "bg-[oklch(0.55_0.17_150)] dark:bg-[oklch(0.45_0.16_150)]" : "bg-secondary"}`}>
                           Lamp {log.growlight_on ? "ON" : "OFF"}
                         </Badge>
                       )}
                       {log.ac_on !== null && (
-                        <Badge variant="secondary" className={`text-[10px] text-white ${log.ac_on ? "bg-[oklch(0.45_0.16_150)]" : "bg-secondary"}`}>
+                        <Badge variant="secondary" className={`text-[10px] text-white ${log.ac_on ? "bg-[oklch(0.55_0.17_150)] dark:bg-[oklch(0.45_0.16_150)]" : "bg-secondary"}`}>
                           AC {log.ac_on ? "ON" : "OFF"}
                         </Badge>
                       )}
                       {log.fan_on !== null && (
-                        <Badge variant="secondary" className={`text-[10px] text-white ${log.fan_on ? "bg-[oklch(0.45_0.16_150)]" : "bg-secondary"}`}>
+                        <Badge variant="secondary" className={`text-[10px] text-white ${log.fan_on ? "bg-[oklch(0.55_0.17_150)] dark:bg-[oklch(0.45_0.16_150)]" : "bg-secondary"}`}>
                           Fan {log.fan_on ? "ON" : "OFF"}
                         </Badge>
                       )}
@@ -391,7 +395,7 @@ export default function EnvironmentalLogPage() {
               {/* Row 2: All parameters in equal grid */}
               <div className="grid grid-cols-3 sm:grid-cols-5 gap-3">
                 <div className="flex flex-col">
-                  <span className="text-[10px] text-muted-foreground uppercase">Suhu</span>
+                  <span className="text-[10px] text-muted-foreground uppercase">{t("env.temperature")}</span>
                   <span className="text-lg font-semibold text-foreground">{log.temperature_c ?? "-"}<span className="text-[10px] text-muted-foreground ml-0.5">°C</span></span>
                 </div>
                 <div className="flex flex-col">
@@ -415,17 +419,17 @@ export default function EnvironmentalLogPage() {
               {/* Row 3: Equipment badges */}
               <div className="flex gap-1 flex-wrap">
                 {log.growlight_on !== null && (
-                  <Badge variant="secondary" className={`text-[10px] text-white ${log.growlight_on ? "bg-[oklch(0.45_0.16_150)]" : "bg-secondary"}`}>
+                  <Badge variant="secondary" className={`text-[10px] text-white ${log.growlight_on ? "bg-[oklch(0.55_0.17_150)] dark:bg-[oklch(0.45_0.16_150)]" : "bg-secondary"}`}>
                     Lamp {log.growlight_on ? "ON" : "OFF"}
                   </Badge>
                 )}
                 {log.ac_on !== null && (
-                  <Badge variant="secondary" className={`text-[10px] text-white ${log.ac_on ? "bg-[oklch(0.45_0.16_150)]" : "bg-secondary"}`}>
+                  <Badge variant="secondary" className={`text-[10px] text-white ${log.ac_on ? "bg-[oklch(0.55_0.17_150)] dark:bg-[oklch(0.45_0.16_150)]" : "bg-secondary"}`}>
                     AC {log.ac_on ? "ON" : "OFF"}
                   </Badge>
                 )}
                 {log.fan_on !== null && (
-                  <Badge variant="secondary" className={`text-[10px] text-white ${log.fan_on ? "bg-[oklch(0.45_0.16_150)]" : "bg-secondary"}`}>
+                  <Badge variant="secondary" className={`text-[10px] text-white ${log.fan_on ? "bg-[oklch(0.55_0.17_150)] dark:bg-[oklch(0.45_0.16_150)]" : "bg-secondary"}`}>
                     Fan {log.fan_on ? "ON" : "OFF"}
                   </Badge>
                 )}
@@ -444,7 +448,7 @@ export default function EnvironmentalLogPage() {
       <Dialog open={selectedLog !== null} onOpenChange={(v) => { if (!v) setSelectedLog(null); }}>
         <DialogContent showCloseButton={true} className="sm:max-w-[450px] bg-card border-border/50 p-0 gap-0">
           <DialogHeader className="p-4 pb-0">
-            <DialogTitle>{editMode ? "Edit Log" : "Detail Log"}</DialogTitle>
+            <DialogTitle>{editMode ? t("env.edit_log") : t("env.detail_log")}</DialogTitle>
           </DialogHeader>
 
           {selectedLog && (
@@ -461,11 +465,11 @@ export default function EnvironmentalLogPage() {
                 <div className="space-y-3">
                   <div className="grid grid-cols-2 gap-3">
                     <div className="space-y-1">
-                      <Label className="text-[13px]">Suhu (°C)</Label>
+                      <Label className="text-[13px]">{t("env.temperature")} (°C)</Label>
                       <Input className="h-9 bg-secondary border-border/50 text-[12px]" value={editTemp} onChange={(e) => setEditTemp(e.target.value)} />
                     </div>
                     <div className="space-y-1">
-                      <Label className="text-[13px]">Kelembaban (%)</Label>
+                      <Label className="text-[13px]">{t("env.humidity")} (%)</Label>
                       <Input className="h-9 bg-secondary border-border/50 text-[12px]" value={editHumidity} onChange={(e) => setEditHumidity(e.target.value)} />
                     </div>
                   </div>
@@ -484,15 +488,15 @@ export default function EnvironmentalLogPage() {
                     </div>
                   </div>
                   <div className="space-y-1">
-                    <Label className="text-[13px]">Catatan</Label>
+                    <Label className="text-[13px]">{t("common.notes")}</Label>
                     <Input className="h-9 bg-secondary border-border/50 text-[12px]" value={editNotes} onChange={(e) => setEditNotes(e.target.value)} />
                   </div>
                   <div className="flex gap-2 pt-1">
-                    <Button className="h-9 bg-[oklch(0.65_0.18_260)] hover:bg-[oklch(0.60_0.20_260)] text-white text-[13px] flex-1" disabled={saving} onClick={handleSave}>
-                      {saving ? "Menyimpan..." : "Simpan"}
+                    <Button className="h-9 bg-primary hover:bg-primary/90 text-white text-[13px] flex-1" disabled={saving} onClick={handleSave}>
+                      {saving ? t("common.saving") : t("common.save")}
                     </Button>
                     <Button variant="ghost" className="h-9 text-[13px]" onClick={() => setEditMode(false)}>
-                      Batal
+                      {t("common.cancel")}
                     </Button>
                   </div>
                 </div>
@@ -500,11 +504,11 @@ export default function EnvironmentalLogPage() {
                 <div className="space-y-3">
                   <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <p className="text-[13px] text-muted-foreground">Suhu</p>
+                      <p className="text-[13px] text-muted-foreground">{t("env.temperature")}</p>
                       <p className="text-[13px] text-foreground font-medium">{selectedLog.temperature_c ?? "-"} °C</p>
                     </div>
                     <div>
-                      <p className="text-[13px] text-muted-foreground">Kelembaban</p>
+                      <p className="text-[13px] text-muted-foreground">{t("env.humidity")}</p>
                       <p className="text-[13px] text-foreground font-medium">{selectedLog.humidity_pct ?? "-"} %</p>
                     </div>
                   </div>
@@ -526,17 +530,17 @@ export default function EnvironmentalLogPage() {
                   {/* Equipment */}
                   <div className="flex gap-1 flex-wrap">
                     {selectedLog.growlight_on !== null && (
-                      <Badge variant="secondary" className={`text-[10px] text-white ${selectedLog.growlight_on ? "bg-[oklch(0.45_0.16_150)]" : "bg-secondary"}`}>
+                      <Badge variant="secondary" className={`text-[10px] text-white ${selectedLog.growlight_on ? "bg-[oklch(0.55_0.17_150)] dark:bg-[oklch(0.45_0.16_150)]" : "bg-secondary"}`}>
                         Lamp {selectedLog.growlight_on ? "ON" : "OFF"}
                       </Badge>
                     )}
                     {selectedLog.ac_on !== null && (
-                      <Badge variant="secondary" className={`text-[10px] text-white ${selectedLog.ac_on ? "bg-[oklch(0.45_0.16_150)]" : "bg-secondary"}`}>
+                      <Badge variant="secondary" className={`text-[10px] text-white ${selectedLog.ac_on ? "bg-[oklch(0.55_0.17_150)] dark:bg-[oklch(0.45_0.16_150)]" : "bg-secondary"}`}>
                         AC {selectedLog.ac_on ? "ON" : "OFF"}
                       </Badge>
                     )}
                     {selectedLog.fan_on !== null && (
-                      <Badge variant="secondary" className={`text-[10px] text-white ${selectedLog.fan_on ? "bg-[oklch(0.45_0.16_150)]" : "bg-secondary"}`}>
+                      <Badge variant="secondary" className={`text-[10px] text-white ${selectedLog.fan_on ? "bg-[oklch(0.55_0.17_150)] dark:bg-[oklch(0.45_0.16_150)]" : "bg-secondary"}`}>
                         Fan {selectedLog.fan_on ? "ON" : "OFF"}
                       </Badge>
                     )}
@@ -547,14 +551,14 @@ export default function EnvironmentalLogPage() {
                     <>
                       <Separator />
                       <div>
-                        <p className="text-[13px] text-muted-foreground">Catatan</p>
+                        <p className="text-[13px] text-muted-foreground">{t("common.notes")}</p>
                         <p className="text-[13px] text-foreground">{selectedLog.notes}</p>
                       </div>
                     </>
                   )}
 
                   <Button variant="outline" className="h-9 text-[13px] w-full" onClick={() => setEditMode(true)}>
-                    Edit
+                    {t("common.edit")}
                   </Button>
                 </div>
               )}

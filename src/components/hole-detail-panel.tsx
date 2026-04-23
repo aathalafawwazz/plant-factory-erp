@@ -3,6 +3,7 @@
 import { useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { uploadPlantingPhotos } from "@/lib/upload-planting-photos";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -16,6 +17,7 @@ import type { HoleStatus } from "@/lib/constants";
 import { HOLE_STATUS, QUALITY_GRADES, VISUAL_CONDITIONS, POST_HARVEST_HANDLING } from "@/lib/constants";
 import { toast } from "sonner";
 import { Sprout, Leaf, Scissors, Wrench, CheckCircle, ArrowLeft, Camera, X } from "lucide-react";
+import { useLang } from "@/lib/i18n";
 
 interface HoleDetailPanelProps {
   hole: Hole | null;
@@ -32,17 +34,18 @@ export function HoleDetailPanel({ hole, cycle, crops, open, onClose }: HoleDetai
   const [view, setView] = useState<PanelView>("detail");
   const router = useRouter();
   const supabase = createClient();
+  const { t } = useLang();
 
   // Planting form state
   const [selectedCropId, setSelectedCropId] = useState("");
   const [plantNotes, setPlantNotes] = useState("");
-  const [plantPhotos, setPlantPhotos] = useState<{ dataUrl: string; timestamp: Date }[]>([]);
+  const [plantPhotos, setPlantPhotos] = useState<{ dataUrl: string; file: File; timestamp: Date }[]>([]);
   const [plantErrors, setPlantErrors] = useState<Record<string, string>>({});
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Action confirmation state
   const [actionView, setActionView] = useState<string | null>(null);
-  const [actionPhotos, setActionPhotos] = useState<{ dataUrl: string; timestamp: Date }[]>([]);
+  const [actionPhotos, setActionPhotos] = useState<{ dataUrl: string; file: File; timestamp: Date }[]>([]);
   const [actionErrors, setActionErrors] = useState<Record<string, string>>({});
   const [harvestWeight, setHarvestWeight] = useState("");
   const [harvestGrade, setHarvestGrade] = useState("");
@@ -77,10 +80,10 @@ export function HoleDetailPanel({ hole, cycle, crops, open, onClose }: HoleDetai
     const reader = new FileReader();
     reader.onload = () => {
       if (actionView) {
-        setActionPhotos((prev) => [...prev, { dataUrl: reader.result as string, timestamp: new Date() }]);
+        setActionPhotos((prev) => [...prev, { dataUrl: reader.result as string, file, timestamp: new Date() }]);
         setActionErrors((prev) => ({ ...prev, photos: "" }));
       } else {
-        setPlantPhotos((prev) => [...prev, { dataUrl: reader.result as string, timestamp: new Date() }]);
+        setPlantPhotos((prev) => [...prev, { dataUrl: reader.result as string, file, timestamp: new Date() }]);
         setPlantErrors((prev) => ({ ...prev, photos: "" }));
       }
     };
@@ -97,9 +100,9 @@ export function HoleDetailPanel({ hole, cycle, crops, open, onClose }: HoleDetai
       .eq("id", hole.id);
 
     if (error) {
-      toast.error("Gagal mengubah status: " + error.message);
+      toast.error(t("hole.status_change_failed") + error.message);
     } else {
-      toast.success(`Status diubah ke ${HOLE_STATUS[newStatus].label}`);
+      toast.success(`${t("hole.status_changed_to")} ${t(HOLE_STATUS[newStatus].labelKey)}`);
       router.refresh();
     }
     setLoading(false);
@@ -117,15 +120,15 @@ export function HoleDetailPanel({ hole, cycle, crops, open, onClose }: HoleDetai
     await supabase.from("planting_cycles").update({ status: newStatus }).eq("id", cycle.id);
     await supabase.from("holes").update({ status: holeStatusMap[newStatus] }).eq("id", hole.id);
 
-    toast.success(`Status diubah ke ${HOLE_STATUS[holeStatusMap[newStatus]].label}`);
+    toast.success(`${t("hole.status_changed_to")} ${t(HOLE_STATUS[holeStatusMap[newStatus]].labelKey)}`);
     router.refresh();
     setLoading(false);
   }
 
   async function handlePlant() {
     const errs: Record<string, string> = {};
-    if (!selectedCropId) errs.crop = "Pilih komoditas";
-    if (plantPhotos.length === 0) errs.photos = "Ambil minimal 1 foto";
+    if (!selectedCropId) errs.crop = t("hole.select_commodity");
+    if (plantPhotos.length === 0) errs.photos = t("hole.take_min_photo");
     if (Object.keys(errs).length > 0) {
       setPlantErrors(errs);
       return;
@@ -146,7 +149,7 @@ export function HoleDetailPanel({ hole, cycle, crops, open, onClose }: HoleDetai
       .single();
 
     if (batchErr || !batch) {
-      toast.error("Gagal membuat batch");
+      toast.error(t("hole.create_batch_failed"));
       setLoading(false);
       return;
     }
@@ -170,7 +173,7 @@ export function HoleDetailPanel({ hole, cycle, crops, open, onClose }: HoleDetai
       .single();
 
     if (cycleErr || !newCycle) {
-      toast.error("Gagal membuat siklus tanam");
+      toast.error(t("hole.create_cycle_failed"));
       setLoading(false);
       return;
     }
@@ -181,7 +184,19 @@ export function HoleDetailPanel({ hole, cycle, crops, open, onClose }: HoleDetai
       .update({ status: "planted" as const, current_cycle_id: newCycle.id })
       .eq("id", hole.id);
 
-    toast.success(`Berhasil menanam ${crop.name_id} di ${hole.canonical_id}`);
+    // Upload photos → planting_photos
+    const { failed: photoFailed } = await uploadPlantingPhotos(supabase, {
+      cycleId: newCycle.id,
+      photos: plantPhotos,
+      kind: "planting",
+      userId: user?.id ?? null,
+    });
+
+    if (photoFailed > 0) {
+      toast.warning(t("hole.plant_success_partial").replace("{n}", String(photoFailed)));
+    } else {
+      toast.success(t("hole.plant_success").replace("{crop}", crop.name_id).replace("{hole}", hole.canonical_id));
+    }
     setView("detail");
     setSelectedCropId("");
     setPlantNotes("");
@@ -190,13 +205,13 @@ export function HoleDetailPanel({ hole, cycle, crops, open, onClose }: HoleDetai
   }
 
   const ACTION_NAMES: Record<string, string> = {
-    planted: "Ubah ke Ditanam",
-    growing: "Tandai Tumbuh",
-    ready_harvest: "Tandai Siap Panen",
-    harvest: "Catat Panen",
-    maintenance: "Mode Perawatan",
-    end_maintenance: "Selesai Perawatan",
-    empty: "Kosongkan Lubang",
+    planted: t("hole.action_planted"),
+    growing: t("hole.action_growing"),
+    ready_harvest: t("hole.action_ready_harvest"),
+    harvest: t("hole.action_harvest"),
+    maintenance: t("hole.action_maintenance"),
+    end_maintenance: t("hole.action_end_maintenance"),
+    empty: t("hole.action_empty"),
   };
 
   function resetActionView() {
@@ -215,10 +230,10 @@ export function HoleDetailPanel({ hole, cycle, crops, open, onClose }: HoleDetai
     if (!actionView) return;
 
     const errs: Record<string, string> = {};
-    if (actionPhotos.length === 0) errs.photos = "Ambil minimal 1 foto";
+    if (actionPhotos.length === 0) errs.photos = t("hole.take_min_photo");
     if (actionView === "harvest") {
-      if (!harvestWeight) errs.weight = "Masukkan berat panen";
-      if (!harvestGrade) errs.grade = "Pilih grade";
+      if (!harvestWeight) errs.weight = t("hole.enter_harvest_weight");
+      if (!harvestGrade) errs.grade = t("hole.select_grade");
     }
     if (Object.keys(errs).length > 0) {
       setActionErrors(errs);
@@ -226,14 +241,19 @@ export function HoleDetailPanel({ hole, cycle, crops, open, onClose }: HoleDetai
     }
 
     setLoading(true);
+    const { data: { user } } = await supabase.auth.getUser();
+
+    // Determine the cycle_id that photos should be attached to (if any) + kind.
+    let targetCycleId: number | null = cycle?.id ?? null;
+    let photoKind: "planting" | "maintenance" | "harvest" = "maintenance";
 
     if (actionView === "planted" || actionView === "growing" || actionView === "ready_harvest") {
-      // Update cycle status + hole status
       if (cycle) {
         await supabase.from("planting_cycles").update({ status: actionView as "planted" | "growing" | "ready_harvest" }).eq("id", cycle.id);
       }
       await supabase.from("holes").update({ status: actionView as HoleStatus }).eq("id", hole!.id);
-      toast.success(`Status diubah ke ${HOLE_STATUS[actionView as HoleStatus].label}`);
+      photoKind = "maintenance";
+      toast.success(`${t("hole.status_changed_to")} ${t(HOLE_STATUS[actionView as HoleStatus].labelKey)}`);
       router.refresh();
     } else if (actionView === "harvest") {
       if (!hole || !cycle) { setLoading(false); return; }
@@ -250,13 +270,27 @@ export function HoleDetailPanel({ hole, cycle, crops, open, onClose }: HoleDetai
       }).eq("id", cycle.id);
 
       await supabase.from("holes").update({ status: "harvested" as HoleStatus, current_cycle_id: null }).eq("id", hole.id);
-
-      toast.success("Panen berhasil dicatat");
+      targetCycleId = cycle.id;
+      photoKind = "harvest";
+      toast.success(t("hole.harvest_recorded"));
       router.refresh();
     } else if (actionView === "maintenance") {
       await updateHoleStatus("maintenance");
+      photoKind = "maintenance";
     } else if (actionView === "end_maintenance" || actionView === "empty") {
       await updateHoleStatus("empty");
+      photoKind = "maintenance";
+    }
+
+    // Upload evidence photos if we have a cycle to attach to
+    if (targetCycleId != null && actionPhotos.length > 0) {
+      const { failed } = await uploadPlantingPhotos(supabase, {
+        cycleId: targetCycleId,
+        photos: actionPhotos,
+        kind: photoKind,
+        userId: user?.id ?? null,
+      });
+      if (failed > 0) toast.warning(t("hole.photos_failed").replace("{n}", String(failed)));
     }
 
     setLoading(false);
@@ -281,7 +315,7 @@ export function HoleDetailPanel({ hole, cycle, crops, open, onClose }: HoleDetai
             )}
             <div>
               <DialogTitle className="text-lg font-semibold text-foreground">
-                {view === "detail" ? hole.canonical_id : `Tanam di ${hole.canonical_id}`}
+                {view === "detail" ? hole.canonical_id : `${t("hole.plant_in")} ${hole.canonical_id}`}
               </DialogTitle>
               {view === "detail" && (
                 <div className="mt-1.5">
@@ -303,10 +337,10 @@ export function HoleDetailPanel({ hole, cycle, crops, open, onClose }: HoleDetai
               {/* Location info */}
               <div className="grid grid-cols-4 gap-2">
                 {[
-                  { label: "Rak", value: hole.rack },
-                  { label: "Tingkat", value: hole.tier },
-                  { label: "Lajur", value: hole.lane },
-                  { label: "Lubang", value: `#${hole.hole_number}` },
+                  { label: t("hole.label_rack"), value: hole.rack },
+                  { label: t("hole.label_tier"), value: hole.tier },
+                  { label: t("hole.label_lane"), value: hole.lane },
+                  { label: t("hole.label_hole"), value: `#${hole.hole_number}` },
                 ].map((item) => (
                   <div key={item.label} className="rounded-lg bg-secondary/50 p-2.5 text-center">
                     <p className="text-[10px] text-muted-foreground uppercase tracking-wider">{item.label}</p>
@@ -320,21 +354,21 @@ export function HoleDetailPanel({ hole, cycle, crops, open, onClose }: HoleDetai
                 <>
                   <Separator className="bg-border/30" />
                   <div>
-                    <h4 className="text-[12px] font-medium text-muted-foreground uppercase tracking-wider mb-2">Siklus Tanam Aktif</h4>
+                    <h4 className="text-[12px] font-medium text-muted-foreground uppercase tracking-wider mb-2">{t("hole.active_cycle")}</h4>
                     <div className="grid grid-cols-2 gap-2">
                       <div className="rounded-lg bg-secondary/50 p-2.5">
-                        <p className="text-[10px] text-muted-foreground">Komoditas</p>
+                        <p className="text-[10px] text-muted-foreground">{t("hole.commodity")}</p>
                         <p className="text-[13px] font-medium text-foreground">{cycle.crop_catalog?.name_id ?? "-"}</p>
                       </div>
                       <div className="rounded-lg bg-secondary/50 p-2.5">
-                        <p className="text-[10px] text-muted-foreground">Ditanam</p>
+                        <p className="text-[10px] text-muted-foreground">{t("hole.planted")}</p>
                         <p className="text-[13px] font-medium text-foreground">
                           {new Date(cycle.planted_at).toLocaleDateString("id-ID")}
                         </p>
                       </div>
                       {cycle.expected_harvest_at && (
                         <div className="rounded-lg bg-secondary/50 p-2.5 col-span-2">
-                          <p className="text-[10px] text-muted-foreground">Target Panen</p>
+                          <p className="text-[10px] text-muted-foreground">{t("hole.target_harvest")}</p>
                           <p className="text-[13px] font-medium text-foreground">
                             {new Date(cycle.expected_harvest_at).toLocaleDateString("id-ID")}
                           </p>
@@ -348,38 +382,38 @@ export function HoleDetailPanel({ hole, cycle, crops, open, onClose }: HoleDetai
               {/* Actions */}
               <Separator className="bg-border/30" />
               <div>
-                <h4 className="text-[12px] font-medium text-muted-foreground uppercase tracking-wider mb-2">Aksi</h4>
+                <h4 className="text-[12px] font-medium text-muted-foreground uppercase tracking-wider mb-2">{t("hole.actions")}</h4>
                 <div className="flex flex-col gap-2">
                   {/* Primary action based on current status */}
                   {hole.status === "empty" && (
-                    <Button className="h-11 bg-[oklch(0.65_0.18_260)] hover:bg-[oklch(0.60_0.20_260)] text-white"
+                    <Button className="h-11 bg-primary hover:bg-primary/90 text-white"
                       onClick={() => setView("plant")}>
-                      <Sprout className="h-4 w-4 mr-2" /> Mulai Tanam
+                      <Sprout className="h-4 w-4 mr-2" /> {t("hole.start_plant")}
                     </Button>
                   )}
                   {hole.status === "planted" && (
-                    <Button className="h-11 bg-[oklch(0.45_0.16_150)] hover:bg-[oklch(0.50_0.18_150)] text-white"
+                    <Button className="h-11 bg-[oklch(0.55_0.17_150)] hover:bg-[oklch(0.50_0.18_150)] dark:bg-[oklch(0.45_0.16_150)] dark:hover:bg-[oklch(0.50_0.18_150)] text-white"
                       onClick={() => setActionView("growing")} disabled={loading || actionView !== null}>
-                      <Leaf className="h-4 w-4 mr-2" /> Tandai Tumbuh
+                      <Leaf className="h-4 w-4 mr-2" /> {t("hole.mark_grow")}
                     </Button>
                   )}
                   {hole.status === "growing" && (
-                    <Button className="h-11 bg-[oklch(0.55_0.15_80)] hover:bg-[oklch(0.60_0.17_80)] text-white"
+                    <Button className="h-11 bg-[oklch(0.62_0.17_70)] hover:bg-[oklch(0.57_0.18_70)] dark:bg-[oklch(0.55_0.15_80)] dark:hover:bg-[oklch(0.60_0.17_80)] text-white"
                       onClick={() => setActionView("ready_harvest")} disabled={loading || actionView !== null}>
-                      <Leaf className="h-4 w-4 mr-2" /> Siap Panen
+                      <Leaf className="h-4 w-4 mr-2" /> {t("hole.ready_harvest_btn")}
                     </Button>
                   )}
                   {hole.status === "ready_harvest" && (
-                    <Button className="h-11 bg-[oklch(0.50_0.12_180)] hover:bg-[oklch(0.55_0.14_180)] text-white"
+                    <Button className="h-11 bg-[oklch(0.55_0.13_180)] hover:bg-[oklch(0.50_0.14_180)] dark:bg-[oklch(0.50_0.12_180)] dark:hover:bg-[oklch(0.55_0.14_180)] text-white"
                       onClick={() => setActionView("harvest")} disabled={loading || actionView !== null}>
-                      <Scissors className="h-4 w-4 mr-2" /> Catat Panen
+                      <Scissors className="h-4 w-4 mr-2" /> {t("hole.record_harvest_btn")}
                     </Button>
                   )}
 
                   {/* Flexible status change — always shown for non-empty holes */}
                   {hole.status !== "empty" && (
                     <div className="rounded-lg bg-secondary/30 p-2.5 mt-1">
-                      <p className="text-[11px] text-muted-foreground mb-2">Ubah status manual:</p>
+                      <p className="text-[11px] text-muted-foreground mb-2">{t("hole.change_status_manual")}</p>
                       <div className="flex flex-wrap gap-1.5">
                         {(["planted", "growing", "ready_harvest", "maintenance", "empty"] as HoleStatus[])
                           .filter((s) => s !== hole.status)
@@ -393,7 +427,7 @@ export function HoleDetailPanel({ hole, cycle, crops, open, onClose }: HoleDetai
                               onClick={() => setActionView(targetStatus === "empty" ? "end_maintenance" : targetStatus)}
                             >
                               <span className={`h-1.5 w-1.5 rounded-full mr-1 ${HOLE_STATUS[targetStatus].dotColor}`} />
-                              {HOLE_STATUS[targetStatus].label}
+                              {t(HOLE_STATUS[targetStatus].labelKey)}
                             </Button>
                           ))}
                       </div>
@@ -404,14 +438,14 @@ export function HoleDetailPanel({ hole, cycle, crops, open, onClose }: HoleDetai
                   {actionView && (
                     <div className="rounded-lg bg-secondary/30 p-3 space-y-3 mt-2">
                       <p className="text-[12px] font-medium text-foreground">
-                        Konfirmasi: {ACTION_NAMES[actionView]}
+                        {t("hole.confirm_prefix")} {ACTION_NAMES[actionView]}
                       </p>
 
                       {/* Photo capture */}
                       <div className="space-y-2">
                         <div className="flex items-center justify-between">
                           <Label className="text-[13px] text-muted-foreground">
-                            Ambil Foto <span className="text-destructive">*</span>
+                            {t("hole.take_photo")} <span className="text-destructive">*</span>
                           </Label>
                           <Button
                             type="button"
@@ -421,7 +455,7 @@ export function HoleDetailPanel({ hole, cycle, crops, open, onClose }: HoleDetai
                             onClick={() => fileInputRef.current?.click()}
                           >
                             <Camera className="h-3 w-3 mr-1" />
-                            Ambil Foto
+                            {t("hole.take_photo")}
                           </Button>
                         </div>
                         {actionPhotos.length > 0 ? (
@@ -441,7 +475,7 @@ export function HoleDetailPanel({ hole, cycle, crops, open, onClose }: HoleDetai
                           </div>
                         ) : (
                           <p className={`text-[11px] ${actionErrors.photos ? "text-destructive" : "text-muted-foreground"}`}>
-                            {actionErrors.photos || "Ambil minimal 1 foto sebagai bukti."}
+                            {actionErrors.photos || t("hole.take_min_photo_evidence")}
                           </p>
                         )}
                       </div>
@@ -451,11 +485,11 @@ export function HoleDetailPanel({ hole, cycle, crops, open, onClose }: HoleDetai
                         <>
                           <div className="space-y-2">
                             <Label className="text-[13px] text-muted-foreground">
-                              Berat Panen (gram) <span className="text-destructive">*</span>
+                              {t("hole.harvest_weight_g")} <span className="text-destructive">*</span>
                             </Label>
                             <Input
                               type="number"
-                              placeholder="Contoh: 250"
+                              placeholder={t("hole.harvest_weight_placeholder")}
                               className={`h-9 bg-secondary border-border/50 text-[12px] ${actionErrors.weight ? "border-destructive" : ""}`}
                               value={harvestWeight}
                               onChange={(e) => { setHarvestWeight(e.target.value); setActionErrors((p) => ({ ...p, weight: "" })); }}
@@ -464,11 +498,11 @@ export function HoleDetailPanel({ hole, cycle, crops, open, onClose }: HoleDetai
                           </div>
                           <div className="space-y-2">
                             <Label className="text-[13px] text-muted-foreground">
-                              Grade <span className="text-destructive">*</span>
+                              {t("hole.grade")} <span className="text-destructive">*</span>
                             </Label>
                             <Select value={harvestGrade} onValueChange={(v) => { if (v !== null) { setHarvestGrade(v); setActionErrors((p) => ({ ...p, grade: "" })); } }}>
                               <SelectTrigger className={`h-9 bg-secondary border-border/50 text-[12px] ${actionErrors.grade ? "border-destructive" : ""}`}>
-                                <SelectValue placeholder="Grade">{harvestGrade ? `Grade ${harvestGrade}` : undefined}</SelectValue>
+                                <SelectValue placeholder={t("hole.grade")}>{harvestGrade ? `Grade ${harvestGrade}` : undefined}</SelectValue>
                               </SelectTrigger>
                               <SelectContent>
                                 {QUALITY_GRADES.map((g) => (
@@ -483,42 +517,42 @@ export function HoleDetailPanel({ hole, cycle, crops, open, onClose }: HoleDetai
 
                           {/* Visual condition */}
                           <div className="space-y-1">
-                            <Label className="text-[11px] text-muted-foreground">Kondisi Visual</Label>
+                            <Label className="text-[11px] text-muted-foreground">{t("hole.visual_condition")}</Label>
                             <Select value={harvestVisual} onValueChange={(v) => v !== null && setHarvestVisual(v)}>
                               <SelectTrigger className="h-9 bg-secondary border-border/50 text-[12px]">
-                                <SelectValue placeholder="Pilih kondisi...">{harvestVisual ? VISUAL_CONDITIONS.find(c => c.value === harvestVisual)?.label : undefined}</SelectValue>
+                                <SelectValue placeholder={t("hole.select_condition")}>{harvestVisual ? (() => { const c = VISUAL_CONDITIONS.find(v => v.value === harvestVisual); return c ? t(c.labelKey) : undefined; })() : undefined}</SelectValue>
                               </SelectTrigger>
                               <SelectContent>
-                                {VISUAL_CONDITIONS.map(c => <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>)}
+                                {VISUAL_CONDITIONS.map(c => <SelectItem key={c.value} value={c.value}>{t(c.labelKey)}</SelectItem>)}
                               </SelectContent>
                             </Select>
                           </div>
 
                           {/* Post harvest handling */}
                           <div className="space-y-1">
-                            <Label className="text-[11px] text-muted-foreground">Penanganan Pasca Panen</Label>
+                            <Label className="text-[11px] text-muted-foreground">{t("hole.post_harvest")}</Label>
                             <Select value={harvestHandling} onValueChange={(v) => v !== null && setHarvestHandling(v)}>
                               <SelectTrigger className="h-9 bg-secondary border-border/50 text-[12px]">
-                                <SelectValue placeholder="Pilih penanganan...">{harvestHandling ? POST_HARVEST_HANDLING.find(c => c.value === harvestHandling)?.label : undefined}</SelectValue>
+                                <SelectValue placeholder={t("hole.select_handling")}>{harvestHandling ? (() => { const c = POST_HARVEST_HANDLING.find(h => h.value === harvestHandling); return c ? t(c.labelKey) : undefined; })() : undefined}</SelectValue>
                               </SelectTrigger>
                               <SelectContent>
-                                {POST_HARVEST_HANDLING.map(c => <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>)}
+                                {POST_HARVEST_HANDLING.map(c => <SelectItem key={c.value} value={c.value}>{t(c.labelKey)}</SelectItem>)}
                               </SelectContent>
                             </Select>
                           </div>
 
                           {/* Harvest notes */}
                           <div className="space-y-1">
-                            <Label className="text-[11px] text-muted-foreground">Catatan Panen</Label>
-                            <Textarea className="bg-secondary border-border/50 text-[12px]" rows={2} placeholder="Observasi saat panen..."
+                            <Label className="text-[11px] text-muted-foreground">{t("hole.harvest_notes")}</Label>
+                            <Textarea className="bg-secondary border-border/50 text-[12px]" rows={2} placeholder={t("hole.harvest_notes_placeholder")}
                               value={harvestDetailNotes} onChange={(e) => setHarvestDetailNotes(e.target.value)} />
                           </div>
 
                           {/* Early harvest reason — shown only if harvesting before expected date */}
                           {cycle && cycle.expected_harvest_at && new Date() < new Date(cycle.expected_harvest_at) && (
                             <div className="space-y-1">
-                              <Label className="text-[11px] text-muted-foreground">Alasan Panen Dini</Label>
-                              <Textarea className="bg-secondary border-border/50 text-[12px]" rows={2} placeholder="Mengapa dipanen sebelum target..."
+                              <Label className="text-[11px] text-muted-foreground">{t("hole.early_harvest_reason")}</Label>
+                              <Textarea className="bg-secondary border-border/50 text-[12px]" rows={2} placeholder={t("hole.early_harvest_placeholder")}
                                 value={harvestEarlyReason} onChange={(e) => setHarvestEarlyReason(e.target.value)} />
                             </div>
                           )}
@@ -528,11 +562,11 @@ export function HoleDetailPanel({ hole, cycle, crops, open, onClose }: HoleDetai
                       {/* Confirm / Cancel buttons */}
                       <div className="flex gap-2">
                         <Button
-                          className="flex-1 h-9 bg-[oklch(0.65_0.18_260)] hover:bg-[oklch(0.60_0.20_260)] text-white"
+                          className="flex-1 h-9 bg-primary hover:bg-primary/90 text-white"
                           onClick={handleActionConfirm}
                           disabled={loading}
                         >
-                          {loading ? "Memproses..." : "Konfirmasi"}
+                          {loading ? t("hole.processing") : t("hole.confirm")}
                         </Button>
                         <Button
                           variant="ghost"
@@ -540,7 +574,7 @@ export function HoleDetailPanel({ hole, cycle, crops, open, onClose }: HoleDetai
                           onClick={resetActionView}
                           disabled={loading}
                         >
-                          Batal
+                          {t("hole.cancel")}
                         </Button>
                       </div>
                     </div>
@@ -554,15 +588,15 @@ export function HoleDetailPanel({ hole, cycle, crops, open, onClose }: HoleDetai
               {/* Crop selection */}
               <div className="space-y-2">
                 <Label className="text-[13px] text-muted-foreground">
-                  Komoditas <span className="text-destructive">*</span>
+                  {t("hole.commodity")} <span className="text-destructive">*</span>
                 </Label>
                 <Select value={selectedCropId} onValueChange={(v) => { if (v !== null) { setSelectedCropId(v); setPlantErrors((p) => ({ ...p, crop: "" })); } }}>
                   <SelectTrigger className={`h-11 bg-secondary border-border/50 ${plantErrors.crop ? "border-destructive" : ""}`}>
-                    <SelectValue placeholder="Pilih komoditas...">
+                    <SelectValue placeholder={t("hole.select_commodity_placeholder")}>
                       {selectedCropId
                         ? (() => {
                             const c = crops.find((cr) => String(cr.id) === selectedCropId);
-                            return c ? `${c.name_id} (${c.grow_duration_days} hari)` : selectedCropId;
+                            return c ? `${c.name_id} (${c.grow_duration_days} ${t("hole.duration_days")})` : selectedCropId;
                           })()
                         : undefined}
                     </SelectValue>
@@ -570,7 +604,7 @@ export function HoleDetailPanel({ hole, cycle, crops, open, onClose }: HoleDetai
                   <SelectContent>
                     {crops.map((crop) => (
                       <SelectItem key={crop.id} value={String(crop.id)}>
-                        {crop.name_id} ({crop.grow_duration_days} hari)
+                        {crop.name_id} ({crop.grow_duration_days} {t("hole.duration_days")})
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -589,7 +623,7 @@ export function HoleDetailPanel({ hole, cycle, crops, open, onClose }: HoleDetai
                       <p className="text-[11px] italic text-muted-foreground">{crop.name_latin}</p>
                     )}
                     <div className="flex gap-4 text-[11px] text-muted-foreground mt-1">
-                      <span>Durasi: {crop.grow_duration_days} hari</span>
+                      <span>{t("hole.duration_label")} {crop.grow_duration_days} {t("hole.duration_days")}</span>
                       {crop.ec_min !== null && crop.ec_max !== null && (
                         <span>EC: {crop.ec_min}–{crop.ec_max}</span>
                       )}
@@ -605,7 +639,7 @@ export function HoleDetailPanel({ hole, cycle, crops, open, onClose }: HoleDetai
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
                   <Label className="text-[13px] text-muted-foreground">
-                    Foto Dokumentasi <span className="text-destructive">*</span>
+                    {t("hole.photo_doc")} <span className="text-destructive">*</span>
                   </Label>
                   <Button
                     type="button"
@@ -615,7 +649,7 @@ export function HoleDetailPanel({ hole, cycle, crops, open, onClose }: HoleDetai
                     onClick={() => fileInputRef.current?.click()}
                   >
                     <Camera className="h-3 w-3 mr-1" />
-                    Ambil Foto
+                    {t("hole.take_photo")}
                   </Button>
                 </div>
                 {plantPhotos.length > 0 ? (
@@ -635,17 +669,17 @@ export function HoleDetailPanel({ hole, cycle, crops, open, onClose }: HoleDetai
                   </div>
                 ) : (
                   <p className={`text-[11px] ${plantErrors.photos ? "text-destructive" : "text-muted-foreground"}`}>
-                    {plantErrors.photos || "Ambil minimal 1 foto sebagai bukti."}
+                    {plantErrors.photos || t("hole.take_min_photo_evidence")}
                   </p>
                 )}
               </div>
 
               {/* Notes */}
               <div className="space-y-2">
-                <Label className="text-[13px] text-muted-foreground">Catatan (opsional)</Label>
+                <Label className="text-[13px] text-muted-foreground">{t("hole.notes_optional")}</Label>
                 <Textarea
                   className="bg-secondary border-border/50 text-foreground placeholder:text-muted-foreground/50"
-                  placeholder="Catatan penanaman..."
+                  placeholder={t("hole.notes_placeholder")}
                   value={plantNotes}
                   onChange={(e) => setPlantNotes(e.target.value)}
                   rows={2}
@@ -653,7 +687,7 @@ export function HoleDetailPanel({ hole, cycle, crops, open, onClose }: HoleDetai
               </div>
 
               <Button
-                className="w-full h-11 bg-[oklch(0.65_0.18_260)] hover:bg-[oklch(0.60_0.20_260)] text-white"
+                className="w-full h-11 bg-primary hover:bg-primary/90 text-white"
                 onClick={handlePlant}
                 disabled={loading}
               >

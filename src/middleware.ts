@@ -29,10 +29,13 @@ export async function middleware(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  const isLoginPage = request.nextUrl.pathname === "/login";
+  const pathname = request.nextUrl.pathname;
+  const isLoginPage = pathname === "/login";
+  // Route-route publik yang tidak perlu session (callback OAuth, confirm email, dsb).
+  const isPublicAuthRoute = pathname.startsWith("/auth/");
 
   // Not logged in and trying to access protected route
-  if (!user && !isLoginPage) {
+  if (!user && !isLoginPage && !isPublicAuthRoute) {
     const url = request.nextUrl.clone();
     url.pathname = "/login";
     return NextResponse.redirect(url);

@@ -46,8 +46,11 @@ import {
   Cell,
 } from "recharts";
 import { VISUAL_CONDITIONS, POST_HARVEST_HANDLING, QUALITY_GRADES } from "@/lib/constants";
+import { useChartTheme } from "@/lib/use-chart-theme";
 import { useRef } from "react";
 import { toast } from "sonner";
+import { useLang } from "@/lib/i18n";
+import { translateCommodity, formatDateLocale } from "@/lib/translate-helpers";
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
@@ -75,26 +78,22 @@ interface HarvestEntry {
 type SortKey = "date_desc" | "date_asc" | "weight_desc" | "weight_asc" | "crop" | "condition" | "handling";
 type ViewMode = "list" | "grid";
 
-const SORT_LABELS: Record<SortKey, string> = {
-  date_desc: "Terbaru",
-  date_asc: "Terlama",
-  weight_desc: "Berat Terbesar",
-  weight_asc: "Berat Terkecil",
-  crop: "Komoditas A-Z",
-  condition: "Kondisi Visual",
-  handling: "Penanganan",
+const SORT_LABEL_KEYS: Record<SortKey, string> = {
+  date_desc: "harvest.sort_newest",
+  date_asc: "harvest.sort_oldest",
+  weight_desc: "harvest.sort_weight_desc",
+  weight_asc: "harvest.sort_weight_asc",
+  crop: "harvest.sort_crop",
+  condition: "harvest.sort_condition",
+  handling: "harvest.sort_handling",
 };
 
 /* ------------------------------------------------------------------ */
 /*  Helpers                                                            */
 /* ------------------------------------------------------------------ */
 
-function formatDate(iso: string) {
-  return new Date(iso).toLocaleDateString("id-ID", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-  });
+function formatDate(iso: string, lang: "id" | "en" = "id") {
+  return formatDateLocale(iso, lang, { day: "numeric", month: "short", year: "numeric" });
 }
 
 function formatWeight(g: number | null): string {
@@ -116,22 +115,24 @@ function gradeColor(grade: string | null) {
   }
 }
 
-function conditionLabel(value: string | null) {
+function conditionLabel(value: string | null, t: (k: string) => string) {
   if (!value) return "-";
-  return VISUAL_CONDITIONS.find((v) => v.value === value)?.label ?? value;
+  const c = VISUAL_CONDITIONS.find((v) => v.value === value);
+  return c ? t(c.labelKey) : value;
 }
 
-function handlingLabel(value: string | null) {
+function handlingLabel(value: string | null, t: (k: string) => string) {
   if (!value) return "-";
-  return POST_HARVEST_HANDLING.find((h) => h.value === value)?.label ?? value;
+  const h = POST_HARVEST_HANDLING.find((x) => x.value === value);
+  return h ? t(h.labelKey) : value;
 }
 
-function daysDiffLabel(actual: number, target: number) {
+function daysDiffLabel(actual: number, target: number, t: (k: string) => string) {
   const diff = actual - target;
-  if (diff === 0) return { text: "Tepat", color: "text-emerald-400" };
+  if (diff === 0) return { text: t("cult.exact"), color: "text-emerald-400" };
   if (diff < 0)
-    return { text: `${Math.abs(diff)} hari`, color: "text-emerald-400" };
-  return { text: `+${diff} hari`, color: "text-amber-400" };
+    return { text: `${Math.abs(diff)} ${t("unit.day")}`, color: "text-emerald-400" };
+  return { text: `+${diff} ${t("unit.day")}`, color: "text-amber-400" };
 }
 
 /* ------------------------------------------------------------------ */
@@ -140,6 +141,8 @@ function daysDiffLabel(actual: number, target: number) {
 
 export default function HarvestPage() {
   const supabase = createClient();
+  const chartTheme = useChartTheme();
+  const { t, lang } = useLang();
 
   const [entries, setEntries] = useState<HarvestEntry[]>([]);
   const [loading, setLoading] = useState(true);
@@ -184,9 +187,9 @@ export default function HarvestPage() {
 
   async function submitHarvest() {
     const errs: Record<string, string> = {};
-    if (!hWeight) errs.weight = "Wajib diisi";
-    if (!hGrade) errs.grade = "Wajib dipilih";
-    if (hPhotos.length === 0) errs.photos = "Ambil minimal 1 foto";
+    if (!hWeight) errs.weight = t("form.required");
+    if (!hGrade) errs.grade = t("form.required");
+    if (hPhotos.length === 0) errs.photos = t("cult.min_one_photo");
     if (Object.keys(errs).length > 0) { setHErrors(errs); return; }
 
     setHSaving(true);
@@ -203,7 +206,7 @@ export default function HarvestPage() {
 
     await supabase.from("holes").update({ status: "harvested" as any, current_cycle_id: null }).eq("id", harvestTarget.hole_id);
 
-    toast.success(`Panen ${harvestTarget.holes?.canonical_id} berhasil dicatat`);
+    toast.success(`${t("cult.harvest")} ${harvestTarget.holes?.canonical_id} ${t("cult.harvest_recorded")}`);
     resetHarvestForm();
     setHSaving(false);
     loadData();
@@ -318,12 +321,13 @@ export default function HarvestPage() {
   const cropChartData = useMemo(() => {
     const map: Record<string, number> = {};
     entries.forEach((e) => {
-      map[e.crop_name] = (map[e.crop_name] ?? 0) + (e.harvest_weight_g ?? 0);
+      const display = translateCommodity(e.crop_name, lang);
+      map[display] = (map[display] ?? 0) + (e.harvest_weight_g ?? 0);
     });
     return Object.entries(map)
       .map(([name, weight]) => ({ name, weight: Math.round(weight) }))
       .sort((a, b) => b.weight - a.weight);
-  }, [entries]);
+  }, [entries, lang]);
 
   const trendData = useMemo(() => {
     const map: Record<string, { date: string; count: number; weight: number }> = {};
@@ -335,25 +339,25 @@ export default function HarvestPage() {
     });
     return Object.values(map).sort((a, b) => a.date.localeCompare(b.date)).map(d => ({
       ...d,
-      date: new Date(d.date).toLocaleDateString("id-ID", { day: "2-digit", month: "short" }),
+      date: formatDateLocale(d.date, lang, { day: "2-digit", month: "short" }),
       weight: Math.round(d.weight),
     }));
-  }, [entries]);
+  }, [entries, lang]);
 
   const gradeData = useMemo(() => {
     const map: Record<string, number> = {};
     entries.forEach((e) => {
-      const g = e.quality_grade ?? "Tanpa";
+      const g = e.quality_grade ?? t("cult.no_grade");
       map[g] = (map[g] ?? 0) + 1;
     });
     return Object.entries(map).map(([name, value]) => ({ name: `Grade ${name}`, value }));
-  }, [entries]);
+  }, [entries, t]);
 
   const GRADE_PIE_COLORS = ["#4ade80", "#38bdf8", "#f59e0b", "#71717a"];
 
   if (loading) {
     return (
-      <div className="text-center py-12 text-muted-foreground">Memuat...</div>
+      <div className="text-center py-12 text-muted-foreground">{t("common.loading")}</div>
     );
   }
 
@@ -362,8 +366,8 @@ export default function HarvestPage() {
       {/* Header */}
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
-          <Scissors className="h-5 w-5 text-[oklch(0.65_0.18_260)]" />
-          <h1 className="text-lg font-semibold text-foreground">Log Panen</h1>
+          <Scissors className="h-5 w-5 text-primary" />
+          <h1 className="text-lg font-semibold text-foreground">{t("page.harvest.header")}</h1>
         </div>
       </div>
 
@@ -371,7 +375,7 @@ export default function HarvestPage() {
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
         <div className="rounded-lg border border-border/40 bg-card p-4">
           <p className="text-[11px] uppercase tracking-wider text-muted-foreground mb-1">
-            Total Panen
+            {t("cult.total_harvest")}
           </p>
           <p className="text-xl font-semibold text-foreground">
             {summary.totalCount}
@@ -379,7 +383,7 @@ export default function HarvestPage() {
         </div>
         <div className="rounded-lg border border-border/40 bg-card p-4">
           <p className="text-[11px] uppercase tracking-wider text-muted-foreground mb-1">
-            Total Berat
+            {t("cult.total_weight")}
           </p>
           <p className="text-xl font-semibold text-foreground">
             {formatWeight(summary.totalWeight)}
@@ -387,7 +391,7 @@ export default function HarvestPage() {
         </div>
         <div className="rounded-lg border border-border/40 bg-card p-4">
           <p className="text-[11px] uppercase tracking-wider text-muted-foreground mb-1">
-            Rata-rata Berat
+            {t("cult.avg_weight")}
           </p>
           <p className="text-xl font-semibold text-foreground">
             {summary.avgWeight > 0 ? `${Math.round(summary.avgWeight)} g` : "-"}
@@ -395,7 +399,7 @@ export default function HarvestPage() {
         </div>
         <div className="rounded-lg border border-border/40 bg-card p-4">
           <p className="text-[11px] uppercase tracking-wider text-muted-foreground mb-1">
-            Distribusi Grade
+            {t("cult.grade_distribution")}
           </p>
           <div className="flex gap-1.5 mt-1">
             {["A", "B", "C"].map((g) => (
@@ -415,15 +419,15 @@ export default function HarvestPage() {
       <div className="grid md:grid-cols-2 gap-4 mb-4">
         {/* Chart 1: Harvest by Crop */}
         <div className="rounded-lg border border-border/40 bg-card p-4">
-          <h3 className="text-[13px] font-semibold text-foreground mb-3">Hasil Panen per Komoditas (gram)</h3>
+          <h3 className="text-[13px] font-semibold text-foreground mb-3">{t("cult.harvest_by_crop")}</h3>
           <ResponsiveContainer width="100%" height={Math.max(200, cropChartData.length * 40)}>
             <BarChart data={cropChartData} layout="vertical" margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#2a2f3a" horizontal={false} />
-              <XAxis type="number" tick={{ fontSize: 11, fill: '#888' }} />
-              <YAxis type="category" dataKey="name" tick={{ fontSize: 11, fill: '#888' }} width={100} />
+              <CartesianGrid strokeDasharray="3 3" stroke={chartTheme.grid} horizontal={false} />
+              <XAxis type="number" tick={{ fontSize: 11, fill: chartTheme.axis }} />
+              <YAxis type="category" dataKey="name" tick={{ fontSize: 11, fill: chartTheme.axis }} width={100} />
               <Tooltip
-                contentStyle={{ backgroundColor: '#161b22', border: '1px solid #2a2f3a', borderRadius: '8px', fontSize: '12px', color: '#f7f8f8' }}
-                formatter={(v) => [`${v} g`, 'Berat']}
+                contentStyle={chartTheme.tooltip}
+                formatter={(v) => [`${v} g`, t("cult.harvest_weight_short")]}
               />
               <Bar dataKey="weight" fill="#2dd4bf" radius={[0, 4, 4, 0]} />
             </BarChart>
@@ -432,13 +436,13 @@ export default function HarvestPage() {
 
         {/* Chart 3: Grade distribution pie */}
         <div className="rounded-lg border border-border/40 bg-card p-4">
-          <h3 className="text-[13px] font-semibold text-foreground mb-3">Distribusi Grade</h3>
+          <h3 className="text-[13px] font-semibold text-foreground mb-3">{t("cult.grade_distribution")}</h3>
           <ResponsiveContainer width="100%" height={200}>
             <PieChart>
               <Pie data={gradeData} cx="50%" cy="50%" innerRadius={50} outerRadius={80} dataKey="value" strokeWidth={0} label={({ name, percent }) => `${name ?? ""} ${((percent ?? 0) * 100).toFixed(0)}%`}>
                 {gradeData.map((_, i) => <Cell key={i} fill={GRADE_PIE_COLORS[i % GRADE_PIE_COLORS.length]} />)}
               </Pie>
-              <Tooltip contentStyle={{ backgroundColor: '#161b22', border: '1px solid #2a2f3a', borderRadius: '8px', fontSize: '12px', color: '#f7f8f8' }} />
+              <Tooltip contentStyle={chartTheme.tooltip} />
             </PieChart>
           </ResponsiveContainer>
         </div>
@@ -446,7 +450,7 @@ export default function HarvestPage() {
 
       {/* Chart 2: Harvest trend over time */}
       <div className="rounded-lg border border-border/40 bg-card p-4 mb-4">
-        <h3 className="text-[13px] font-semibold text-foreground mb-3">Tren Panen Harian</h3>
+        <h3 className="text-[13px] font-semibold text-foreground mb-3">{t("cult.harvest_trend_daily")}</h3>
         <ResponsiveContainer width="100%" height={250}>
           <AreaChart data={trendData} margin={{ top: 5, right: 10, left: 0, bottom: 5 }}>
             <defs>
@@ -455,14 +459,14 @@ export default function HarvestPage() {
                 <stop offset="100%" stopColor="#2dd4bf" stopOpacity={0} />
               </linearGradient>
             </defs>
-            <CartesianGrid strokeDasharray="3 3" stroke="#2a2f3a" />
-            <XAxis dataKey="date" tick={{ fontSize: 10, fill: '#888' }} />
-            <YAxis tick={{ fontSize: 10, fill: '#888' }} />
+            <CartesianGrid strokeDasharray="3 3" stroke={chartTheme.grid} />
+            <XAxis dataKey="date" tick={{ fontSize: 10, fill: chartTheme.axis }} />
+            <YAxis tick={{ fontSize: 10, fill: chartTheme.axis }} />
             <Tooltip
-              contentStyle={{ backgroundColor: '#161b22', border: '1px solid #2a2f3a', borderRadius: '8px', fontSize: '12px', color: '#f7f8f8' }}
+              contentStyle={chartTheme.tooltip}
               formatter={(v) => [String(v), '']}
             />
-            <Area type="monotone" dataKey="weight" stroke="#2dd4bf" strokeWidth={2} fill="url(#panenGrad)" name="Berat (g)" />
+            <Area type="monotone" dataKey="weight" stroke="#2dd4bf" strokeWidth={2} fill="url(#panenGrad)" name={`${t("cult.harvest_weight_short")} (g)`} />
           </AreaChart>
         </ResponsiveContainer>
       </div>
@@ -478,29 +482,29 @@ export default function HarvestPage() {
             onClick={() => setShowReadySection(!showReadySection)}
           >
             <ChevronDown className={`h-3.5 w-3.5 transition-transform ${showReadySection ? "" : "-rotate-90"}`} />
-            Siap Panen ({readyToHarvest.length})
+            {t("hole_status.ready_harvest")} ({readyToHarvest.length})
           </button>
           {showReadySection && (
             <div className="space-y-2">
               {readyToHarvest.map((cycle: any) => (
-                <div key={cycle.id} className="rounded-lg border border-[oklch(0.55_0.15_80/0.3)] bg-[oklch(0.55_0.15_80/0.06)] p-3">
+                <div key={cycle.id} className="rounded-lg border border-[oklch(0.55_0.15_80/0.4)] bg-[oklch(0.60_0.17_80/0.10)] dark:border-[oklch(0.55_0.15_80/0.3)] dark:bg-[oklch(0.55_0.15_80/0.06)] p-3">
                   <div className="flex items-center justify-between">
                     <div>
                       <span className="text-[13px] font-medium text-foreground">{cycle.holes?.canonical_id ?? "-"}</span>
-                      <span className="text-[12px] text-muted-foreground ml-2">{cycle.crop_catalog?.name_id ?? "-"}</span>
+                      <span className="text-[12px] text-muted-foreground ml-2">{translateCommodity(cycle.crop_catalog?.name_id ?? "-", lang)}</span>
                       <span className="text-[11px] text-muted-foreground ml-2">({cycle.batches?.batch_code})</span>
                     </div>
                     <Button
                       size="sm"
-                      className="h-8 text-[12px] bg-[oklch(0.55_0.15_80)] hover:bg-[oklch(0.60_0.17_80)] text-white"
+                      className="h-8 text-[12px] bg-[oklch(0.62_0.17_70)] hover:bg-[oklch(0.57_0.18_70)] dark:bg-[oklch(0.55_0.15_80)] dark:hover:bg-[oklch(0.60_0.17_80)] text-white"
                       onClick={() => setHarvestTarget(cycle)}
                     >
-                      <Scissors className="h-3 w-3 mr-1" /> Panen
+                      <Scissors className="h-3 w-3 mr-1" /> {t("cult.harvest")}
                     </Button>
                   </div>
                   {cycle.expected_harvest_at && (
                     <p className="text-[11px] text-muted-foreground mt-1">
-                      Target: {formatDate(cycle.expected_harvest_at)}
+                      {t("cult.harvest_target")}: {formatDate(cycle.expected_harvest_at, lang)}
                     </p>
                   )}
                 </div>
@@ -517,17 +521,17 @@ export default function HarvestPage() {
             <>
               <DialogHeader className="px-5 pt-5 pb-3">
                 <DialogTitle className="text-base font-semibold text-foreground">
-                  Panen {harvestTarget.holes?.canonical_id}
+                  {t("cult.harvest")} {harvestTarget.holes?.canonical_id}
                 </DialogTitle>
                 <p className="text-[12px] text-muted-foreground mt-1">
-                  {harvestTarget.crop_catalog?.name_id} — {harvestTarget.batches?.batch_code}
+                  {translateCommodity(harvestTarget.crop_catalog?.name_id ?? "", lang)} — {harvestTarget.batches?.batch_code}
                 </p>
               </DialogHeader>
               <Separator className="bg-border/30" />
               <div className="px-5 py-4 space-y-3 max-h-[60vh] overflow-y-auto">
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1">
-                    <Label className="text-[11px] text-muted-foreground">Berat (gram) *</Label>
+                    <Label className="text-[11px] text-muted-foreground">{t("cult.weight_grams")} *</Label>
                     <Input type="number" className={`h-9 bg-secondary border-border/50 text-[12px] ${hErrors.weight ? "border-destructive" : ""}`}
                       placeholder="250" value={hWeight} onChange={(e) => { setHWeight(e.target.value); setHErrors((p) => ({ ...p, weight: "" })); }} step="0.1" />
                     {hErrors.weight && <p className="text-[10px] text-destructive">{hErrors.weight}</p>}
@@ -547,24 +551,24 @@ export default function HarvestPage() {
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1">
-                    <Label className="text-[11px] text-muted-foreground">Kondisi Visual</Label>
+                    <Label className="text-[11px] text-muted-foreground">{t("cult.visual_condition")}</Label>
                     <Select value={hVisual} onValueChange={(v) => v !== null && setHVisual(v)}>
                       <SelectTrigger className="h-9 bg-secondary border-border/50 text-[12px]">
-                        <SelectValue placeholder="Pilih...">{hVisual ? VISUAL_CONDITIONS.find((c) => c.value === hVisual)?.label : undefined}</SelectValue>
+                        <SelectValue placeholder={`${t("common.select")}...`}>{hVisual ? (() => { const c = VISUAL_CONDITIONS.find(v => v.value === hVisual); return c ? t(c.labelKey) : undefined; })() : undefined}</SelectValue>
                       </SelectTrigger>
                       <SelectContent>
-                        {VISUAL_CONDITIONS.map((c) => <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>)}
+                        {VISUAL_CONDITIONS.map((c) => <SelectItem key={c.value} value={c.value}>{t(c.labelKey)}</SelectItem>)}
                       </SelectContent>
                     </Select>
                   </div>
                   <div className="space-y-1">
-                    <Label className="text-[11px] text-muted-foreground">Penanganan</Label>
+                    <Label className="text-[11px] text-muted-foreground">{t("cult.handling")}</Label>
                     <Select value={hHandling} onValueChange={(v) => v !== null && setHHandling(v)}>
                       <SelectTrigger className="h-9 bg-secondary border-border/50 text-[12px]">
-                        <SelectValue placeholder="Pilih...">{hHandling ? POST_HARVEST_HANDLING.find((c) => c.value === hHandling)?.label : undefined}</SelectValue>
+                        <SelectValue placeholder={`${t("common.select")}...`}>{hHandling ? (() => { const c = POST_HARVEST_HANDLING.find(h => h.value === hHandling); return c ? t(c.labelKey) : undefined; })() : undefined}</SelectValue>
                       </SelectTrigger>
                       <SelectContent>
-                        {POST_HARVEST_HANDLING.map((c) => <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>)}
+                        {POST_HARVEST_HANDLING.map((c) => <SelectItem key={c.value} value={c.value}>{t(c.labelKey)}</SelectItem>)}
                       </SelectContent>
                     </Select>
                   </div>
@@ -572,10 +576,10 @@ export default function HarvestPage() {
                 {/* Photo */}
                 <div className="space-y-1">
                   <div className="flex items-center justify-between">
-                    <Label className="text-[11px] text-muted-foreground">Foto Panen *</Label>
+                    <Label className="text-[11px] text-muted-foreground">{t("cult.harvest_photo")} *</Label>
                     <Button type="button" size="sm" variant="outline" className="h-6 text-[10px] border-border/50"
                       onClick={() => hFileRef.current?.click()}>
-                      <Camera className="h-3 w-3 mr-1" /> Foto
+                      <Camera className="h-3 w-3 mr-1" /> {t("cult.photo")}
                     </Button>
                   </div>
                   {hPhotos.length > 0 ? (
@@ -592,27 +596,27 @@ export default function HarvestPage() {
                     </div>
                   ) : (
                     <p className={`text-[10px] ${hErrors.photos ? "text-destructive" : "text-muted-foreground"}`}>
-                      {hErrors.photos || "Ambil minimal 1 foto."}
+                      {hErrors.photos || t("cult.min_one_photo")}
                     </p>
                   )}
                 </div>
                 {/* Notes */}
                 <div className="space-y-1">
-                  <Label className="text-[11px] text-muted-foreground">Catatan Panen</Label>
-                  <Textarea className="bg-secondary border-border/50 text-[12px]" rows={2} placeholder="Observasi..."
+                  <Label className="text-[11px] text-muted-foreground">{t("cult.harvest_notes")}</Label>
+                  <Textarea className="bg-secondary border-border/50 text-[12px]" rows={2} placeholder={t("cult.observation_placeholder")}
                     value={hNotes} onChange={(e) => setHNotes(e.target.value)} />
                 </div>
                 {/* Early reason */}
                 {harvestTarget.expected_harvest_at && new Date() < new Date(harvestTarget.expected_harvest_at) && (
                   <div className="space-y-1">
-                    <Label className="text-[11px] text-muted-foreground">Alasan Panen Dini</Label>
-                    <Textarea className="bg-secondary border-border/50 text-[12px]" rows={2} placeholder="Mengapa dipanen lebih awal..."
+                    <Label className="text-[11px] text-muted-foreground">{t("cult.early_harvest_reason")}</Label>
+                    <Textarea className="bg-secondary border-border/50 text-[12px]" rows={2} placeholder={t("cult.early_reason_placeholder")}
                       value={hEarlyReason} onChange={(e) => setHEarlyReason(e.target.value)} />
                   </div>
                 )}
-                <Button className="w-full h-10 bg-[oklch(0.65_0.18_260)] hover:bg-[oklch(0.60_0.20_260)] text-white text-[13px]"
+                <Button className="w-full h-10 bg-primary hover:bg-primary/90 text-white text-[13px]"
                   onClick={submitHarvest} disabled={hSaving}>
-                  {hSaving ? "Menyimpan..." : "Catat Panen"}
+                  {hSaving ? t("common.saving") : t("cult.record_harvest")}
                 </Button>
               </div>
             </>
@@ -629,11 +633,11 @@ export default function HarvestPage() {
             onValueChange={(v) => v !== null && setSortKey(v as SortKey)}
           >
             <SelectTrigger className="h-8 bg-secondary border-border/50 text-[12px] w-[180px]">
-              <SelectValue>{SORT_LABELS[sortKey]}</SelectValue>
+              <SelectValue>{t(SORT_LABEL_KEYS[sortKey])}</SelectValue>
             </SelectTrigger>
             <SelectContent>
-              {Object.entries(SORT_LABELS).map(([k, label]) => (
-                <SelectItem key={k} value={k}>{label}</SelectItem>
+              {Object.entries(SORT_LABEL_KEYS).map(([k, key]) => (
+                <SelectItem key={k} value={k}>{t(key)}</SelectItem>
               ))}
             </SelectContent>
           </Select>
@@ -662,7 +666,7 @@ export default function HarvestPage() {
       {sorted.length === 0 ? (
         <Card className="rounded-xl border border-border/40 bg-card">
           <CardContent className="py-12 text-center text-[13px] text-muted-foreground">
-            Belum ada data panen.
+            {t("cult.no_harvest_data")}
           </CardContent>
         </Card>
       ) : viewMode === "list" ? (
@@ -672,34 +676,34 @@ export default function HarvestPage() {
             <TableHeader>
               <TableRow>
                 <TableHead className="text-[12px] text-muted-foreground">
-                  Tanggal
+                  {t("common.date")}
                 </TableHead>
                 <TableHead className="text-[12px] text-muted-foreground">
-                  Lubang
+                  {t("cult.hole")}
                 </TableHead>
                 <TableHead className="text-[12px] text-muted-foreground">
-                  Komoditas
+                  {t("cult.commodity")}
                 </TableHead>
                 <TableHead className="text-[12px] text-muted-foreground">
-                  Batch
+                  {t("cult.batch")}
                 </TableHead>
                 <TableHead className="text-[12px] text-muted-foreground">
-                  Durasi (hari)
+                  {t("cult.duration_days")}
                 </TableHead>
                 <TableHead className="text-[12px] text-muted-foreground">
-                  Berat (g)
+                  {t("cult.harvest_weight_short")} (g)
                 </TableHead>
                 <TableHead className="text-[12px] text-muted-foreground">
                   Grade
                 </TableHead>
                 <TableHead className="text-[12px] text-muted-foreground">
-                  Kondisi
+                  {t("cult.condition")}
                 </TableHead>
                 <TableHead className="text-[12px] text-muted-foreground">
-                  Penanganan
+                  {t("cult.handling")}
                 </TableHead>
                 <TableHead className="text-[12px] text-muted-foreground">
-                  Catatan
+                  {t("common.notes")}
                 </TableHead>
               </TableRow>
             </TableHeader>
@@ -711,13 +715,13 @@ export default function HarvestPage() {
                   onClick={() => setSelectedEntry(entry)}
                 >
                   <TableCell className="text-[13px]">
-                    {formatDate(entry.harvested_at)}
+                    {formatDate(entry.harvested_at, lang)}
                   </TableCell>
                   <TableCell className="text-[13px] font-medium">
                     {entry.hole_canonical}
                   </TableCell>
                   <TableCell className="text-[13px]">
-                    {entry.crop_name}
+                    {translateCommodity(entry.crop_name, lang)}
                   </TableCell>
                   <TableCell className="text-[13px]">
                     {entry.batch_code}
@@ -743,10 +747,10 @@ export default function HarvestPage() {
                     )}
                   </TableCell>
                   <TableCell className="text-[13px]">
-                    {conditionLabel(entry.visual_condition)}
+                    {conditionLabel(entry.visual_condition, t)}
                   </TableCell>
                   <TableCell className="text-[13px]">
-                    {handlingLabel(entry.post_harvest_handling)}
+                    {handlingLabel(entry.post_harvest_handling, t)}
                   </TableCell>
                   <TableCell className="text-[12px] text-muted-foreground max-w-[150px] truncate">
                     {entry.harvest_notes ?? "-"}
@@ -762,7 +766,8 @@ export default function HarvestPage() {
           {sorted.map((entry) => {
             const diff = daysDiffLabel(
               entry.actual_days,
-              entry.grow_duration_days
+              entry.grow_duration_days,
+              t
             );
             return (
               <div
@@ -773,7 +778,7 @@ export default function HarvestPage() {
                 {/* Row 1: Date + location */}
                 <div className="flex items-center justify-between">
                   <span className="text-[13px] text-foreground">
-                    {formatDate(entry.harvested_at)}
+                    {formatDate(entry.harvested_at, lang)}
                   </span>
                   <Badge
                     variant="outline"
@@ -786,7 +791,7 @@ export default function HarvestPage() {
                 {/* Row 2: Crop + batch */}
                 <div className="flex items-center gap-2">
                   <span className="text-[14px] font-medium text-foreground">
-                    {entry.crop_name}
+                    {translateCommodity(entry.crop_name, lang)}
                   </span>
                   <span className="text-[12px] text-muted-foreground">
                     {entry.batch_code}
@@ -797,7 +802,7 @@ export default function HarvestPage() {
                 <div className="grid grid-cols-4 gap-2">
                   <div>
                     <p className="text-[10px] uppercase tracking-wider text-muted-foreground">
-                      Berat
+                      {t("cult.harvest_weight_short")}
                     </p>
                     <p className="text-[15px] font-semibold text-foreground">
                       {entry.harvest_weight_g ?? "-"}
@@ -827,18 +832,18 @@ export default function HarvestPage() {
                   </div>
                   <div>
                     <p className="text-[10px] uppercase tracking-wider text-muted-foreground">
-                      Durasi
+                      {t("cult.duration")}
                     </p>
                     <p className="text-[15px] font-semibold text-foreground">
                       {entry.actual_days}
                       <span className="text-[11px] font-normal text-muted-foreground">
-                        hr
+                        {t("unit.day")}
                       </span>
                     </p>
                   </div>
                   <div>
                     <p className="text-[10px] uppercase tracking-wider text-muted-foreground">
-                      Selisih
+                      {t("cult.diff")}
                     </p>
                     <p className={`text-[15px] font-semibold ${diff.color}`}>
                       {entry.grow_duration_days > 0 ? diff.text : "-"}
@@ -854,7 +859,7 @@ export default function HarvestPage() {
                         variant="secondary"
                         className="text-[11px] px-1.5 py-0"
                       >
-                        {conditionLabel(entry.visual_condition)}
+                        {conditionLabel(entry.visual_condition, t)}
                       </Badge>
                     )}
                     {entry.post_harvest_handling && (
@@ -862,7 +867,7 @@ export default function HarvestPage() {
                         variant="secondary"
                         className="text-[11px] px-1.5 py-0"
                       >
-                        {handlingLabel(entry.post_harvest_handling)}
+                        {handlingLabel(entry.post_harvest_handling, t)}
                       </Badge>
                     )}
                   </div>
@@ -893,16 +898,16 @@ export default function HarvestPage() {
         >
           {selectedEntry && (() => {
             const e = selectedEntry;
-            const diff = daysDiffLabel(e.actual_days, e.grow_duration_days);
+            const diff = daysDiffLabel(e.actual_days, e.grow_duration_days, t);
 
             return (
               <>
                 <DialogHeader className="px-5 pt-5 pb-3">
                   <DialogTitle className="text-base font-semibold text-foreground">
-                    {e.hole_canonical} — {e.crop_name}
+                    {e.hole_canonical} — {translateCommodity(e.crop_name, lang)}
                   </DialogTitle>
                   <p className="text-[12px] text-muted-foreground mt-1">
-                    Detail panen
+                    {t("cult.harvest_detail")}
                   </p>
                 </DialogHeader>
 
@@ -912,12 +917,12 @@ export default function HarvestPage() {
                   {/* Section 1: Info Tanam */}
                   <div>
                     <h4 className="text-[12px] font-medium text-muted-foreground uppercase tracking-wider mb-3">
-                      Info Tanam
+                      {t("cult.harvest_info")}
                     </h4>
                     <div className="space-y-2">
                       <div className="flex justify-between">
                         <span className="text-[13px] text-muted-foreground">
-                          Batch
+                          {t("cult.batch")}
                         </span>
                         <span className="text-[13px] text-foreground font-medium">
                           {e.batch_code}
@@ -925,42 +930,42 @@ export default function HarvestPage() {
                       </div>
                       <div className="flex justify-between">
                         <span className="text-[13px] text-muted-foreground">
-                          Tanggal Tanam
+                          {t("cult.planted_date")}
                         </span>
                         <span className="text-[13px] text-foreground">
-                          {formatDate(e.planted_at)}
+                          {formatDate(e.planted_at, lang)}
                         </span>
                       </div>
                       <div className="flex justify-between">
                         <span className="text-[13px] text-muted-foreground">
-                          Tanggal Panen
+                          {t("cult.harvest_date")}
                         </span>
                         <span className="text-[13px] text-foreground">
-                          {formatDate(e.harvested_at)}
+                          {formatDate(e.harvested_at, lang)}
                         </span>
                       </div>
                       <div className="flex justify-between">
                         <span className="text-[13px] text-muted-foreground">
-                          Durasi Aktual
+                          {t("cult.actual_duration")}
                         </span>
                         <span className="text-[13px] text-foreground">
-                          {e.actual_days} hari
+                          {e.actual_days} {t("unit.day")}
                         </span>
                       </div>
                       <div className="flex justify-between">
                         <span className="text-[13px] text-muted-foreground">
-                          Durasi Target
+                          {t("cult.target_duration")}
                         </span>
                         <span className="text-[13px] text-foreground">
                           {e.grow_duration_days > 0
-                            ? `${e.grow_duration_days} hari`
+                            ? `${e.grow_duration_days} ${t("unit.day")}`
                             : "-"}
                         </span>
                       </div>
                       {e.grow_duration_days > 0 && (
                         <div className="flex justify-between">
                           <span className="text-[13px] text-muted-foreground">
-                            Selisih
+                            {t("cult.diff")}
                           </span>
                           <span
                             className={`text-[13px] font-medium ${diff.color}`}
@@ -977,12 +982,12 @@ export default function HarvestPage() {
                   {/* Section 2: Hasil Panen */}
                   <div>
                     <h4 className="text-[12px] font-medium text-muted-foreground uppercase tracking-wider mb-3">
-                      Hasil Panen
+                      {t("cult.harvest_result")}
                     </h4>
                     <div className="space-y-2">
                       <div className="flex justify-between items-center">
                         <span className="text-[13px] text-muted-foreground">
-                          Berat
+                          {t("cult.harvest_weight_short")}
                         </span>
                         <span className="text-[13px] text-foreground font-medium">
                           {formatWeight(e.harvest_weight_g)}
@@ -1007,18 +1012,18 @@ export default function HarvestPage() {
                       </div>
                       <div className="flex justify-between">
                         <span className="text-[13px] text-muted-foreground">
-                          Kondisi Visual
+                          {t("cult.visual_condition")}
                         </span>
                         <span className="text-[13px] text-foreground">
-                          {conditionLabel(e.visual_condition)}
+                          {conditionLabel(e.visual_condition, t)}
                         </span>
                       </div>
                       <div className="flex justify-between">
                         <span className="text-[13px] text-muted-foreground">
-                          Penanganan Pasca Panen
+                          {t("cult.post_harvest")}
                         </span>
                         <span className="text-[13px] text-foreground">
-                          {handlingLabel(e.post_harvest_handling)}
+                          {handlingLabel(e.post_harvest_handling, t)}
                         </span>
                       </div>
                     </div>
@@ -1030,13 +1035,13 @@ export default function HarvestPage() {
                       <Separator className="bg-border/30" />
                       <div>
                         <h4 className="text-[12px] font-medium text-muted-foreground uppercase tracking-wider mb-3">
-                          Catatan
+                          {t("common.notes")}
                         </h4>
                         <div className="space-y-2">
                           {e.harvest_notes && (
                             <div>
                               <p className="text-[12px] text-muted-foreground mb-0.5">
-                                Catatan Panen
+                                {t("cult.harvest_notes")}
                               </p>
                               <p className="text-[13px] text-foreground">
                                 {e.harvest_notes}
@@ -1046,7 +1051,7 @@ export default function HarvestPage() {
                           {e.early_harvest_reason && (
                             <div>
                               <p className="text-[12px] text-muted-foreground mb-0.5">
-                                Alasan Panen Dini
+                                {t("cult.early_harvest_reason")}
                               </p>
                               <p className="text-[13px] text-foreground">
                                 {e.early_harvest_reason}

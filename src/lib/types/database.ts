@@ -1,7 +1,19 @@
 export type HoleStatus = "empty" | "planted" | "growing" | "ready_harvest" | "harvested" | "maintenance";
-export type UserRole = "admin" | "operator" | "viewer";
+export type UserRole = "admin" | "operator" | "viewer" | "researcher";
+export type ResearchType = "skripsi" | "tesis" | "disertasi" | "dosen" | "eksternal" | "internal";
+export type ResearchStatus = "proposed" | "approved" | "active" | "paused" | "completed" | "cancelled";
+export type ResearchAttachmentKind = "photo" | "document" | "dataset" | "report";
+export type VisitType = "tour" | "meeting" | "field_trip" | "media" | "partnership" | "training" | "government" | "other";
+export type VisitStatus = "scheduled" | "confirmed" | "ongoing" | "completed" | "cancelled" | "no_show";
+export type VisitAttachmentKind = "photo" | "document" | "signature";
 export type CycleStatus = "planted" | "growing" | "ready_harvest" | "harvested" | "cancelled";
 export type BatchStatus = "active" | "completed";
+
+export type InventoryCategory = "seed" | "nutrient" | "media" | "ph_solution" | "packaging" | "equipment" | "product" | "other";
+export type InventoryTxnType = "in" | "out" | "adjustment";
+export type InventoryTxnSource = "purchase" | "harvest" | "sale" | "usage" | "waste" | "manual";
+export type ExpenseCategory = "seed" | "nutrient" | "media" | "ph_solution" | "packaging" | "utility" | "labor" | "equipment" | "maintenance" | "other";
+export type ExpensePaymentMethod = "tunai" | "transfer" | "ewallet" | "kartu" | "lainnya";
 
 export interface Database {
   public: {
@@ -173,6 +185,7 @@ export interface Database {
           post_harvest_handling: string | null;
           harvest_notes: string | null;
           early_harvest_reason: string | null;
+          research_id: number | null;
         };
         Insert: {
           hole_id: number;
@@ -183,6 +196,7 @@ export interface Database {
           status?: CycleStatus;
           notes?: string | null;
           created_by?: string | null;
+          research_id?: number | null;
         };
         Update: {
           status?: CycleStatus;
@@ -215,6 +229,39 @@ export interface Database {
             columns: ["crop_catalog_id"];
             isOneToOne: false;
             referencedRelation: "crop_catalog";
+            referencedColumns: ["id"];
+          }
+        ];
+      };
+      planting_photos: {
+        Row: {
+          id: number;
+          cycle_id: number;
+          storage_path: string;
+          kind: "planting" | "maintenance" | "harvest";
+          captured_at: string;
+          captured_by: string | null;
+          notes: string | null;
+          created_at: string;
+        };
+        Insert: {
+          cycle_id: number;
+          storage_path: string;
+          kind?: "planting" | "maintenance" | "harvest";
+          captured_at?: string;
+          captured_by?: string | null;
+          notes?: string | null;
+        };
+        Update: {
+          notes?: string | null;
+          kind?: "planting" | "maintenance" | "harvest";
+        };
+        Relationships: [
+          {
+            foreignKeyName: "planting_photos_cycle_id_fkey";
+            columns: ["cycle_id"];
+            isOneToOne: false;
+            referencedRelation: "planting_cycles";
             referencedColumns: ["id"];
           }
         ];
@@ -629,6 +676,397 @@ export interface Database {
           }
         ];
       };
+      inventory_items: {
+        Row: {
+          id: number;
+          name: string;
+          category: InventoryCategory;
+          sku: string | null;
+          unit: string;
+          current_stock: number;
+          min_stock: number | null;
+          unit_cost: number | null;
+          unit_price: number | null;
+          supplier: string | null;
+          notes: string | null;
+          crop_catalog_id: number | null;
+          is_active: boolean;
+          created_by: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          name: string;
+          category: InventoryCategory;
+          sku?: string | null;
+          unit?: string;
+          current_stock?: number;
+          min_stock?: number | null;
+          unit_cost?: number | null;
+          unit_price?: number | null;
+          supplier?: string | null;
+          notes?: string | null;
+          crop_catalog_id?: number | null;
+          is_active?: boolean;
+          created_by?: string | null;
+        };
+        Update: {
+          name?: string;
+          category?: InventoryCategory;
+          sku?: string | null;
+          unit?: string;
+          current_stock?: number;
+          min_stock?: number | null;
+          unit_cost?: number | null;
+          unit_price?: number | null;
+          supplier?: string | null;
+          notes?: string | null;
+          crop_catalog_id?: number | null;
+          is_active?: boolean;
+        };
+        Relationships: [];
+      };
+      inventory_transactions: {
+        Row: {
+          id: number;
+          item_id: number;
+          txn_type: InventoryTxnType;
+          source: InventoryTxnSource;
+          quantity: number;
+          unit_cost: number | null;
+          total_cost: number | null;
+          reference_type: string | null;
+          reference_id: number | null;
+          notes: string | null;
+          recorded_by: string | null;
+          recorded_at: string;
+        };
+        Insert: {
+          item_id: number;
+          txn_type: InventoryTxnType;
+          source?: InventoryTxnSource;
+          quantity: number;
+          unit_cost?: number | null;
+          total_cost?: number | null;
+          reference_type?: string | null;
+          reference_id?: number | null;
+          notes?: string | null;
+          recorded_by?: string | null;
+        };
+        Update: {
+          txn_type?: InventoryTxnType;
+          source?: InventoryTxnSource;
+          quantity?: number;
+          unit_cost?: number | null;
+          total_cost?: number | null;
+          reference_type?: string | null;
+          reference_id?: number | null;
+          notes?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "inventory_transactions_item_id_fkey";
+            columns: ["item_id"];
+            isOneToOne: false;
+            referencedRelation: "inventory_items";
+            referencedColumns: ["id"];
+          }
+        ];
+      };
+      expenses: {
+        Row: {
+          id: number;
+          expense_date: string;
+          category: ExpenseCategory;
+          amount: number;
+          description: string;
+          vendor: string | null;
+          payment_method: ExpensePaymentMethod | null;
+          inventory_item_id: number | null;
+          quantity: number | null;
+          receipt_url: string | null;
+          notes: string | null;
+          created_by: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          expense_date?: string;
+          category: ExpenseCategory;
+          amount: number;
+          description: string;
+          vendor?: string | null;
+          payment_method?: ExpensePaymentMethod | null;
+          inventory_item_id?: number | null;
+          quantity?: number | null;
+          receipt_url?: string | null;
+          notes?: string | null;
+          created_by?: string | null;
+        };
+        Update: {
+          expense_date?: string;
+          category?: ExpenseCategory;
+          amount?: number;
+          description?: string;
+          vendor?: string | null;
+          payment_method?: ExpensePaymentMethod | null;
+          inventory_item_id?: number | null;
+          quantity?: number | null;
+          receipt_url?: string | null;
+          notes?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "expenses_inventory_item_id_fkey";
+            columns: ["inventory_item_id"];
+            isOneToOne: false;
+            referencedRelation: "inventory_items";
+            referencedColumns: ["id"];
+          }
+        ];
+      };
+      research_projects: {
+        Row: {
+          id: number;
+          code: string;
+          title: string;
+          description: string | null;
+          research_type: ResearchType;
+          objective: string | null;
+          researcher_user_id: string | null;
+          researcher_name: string;
+          researcher_id_no: string | null;
+          institution: string | null;
+          email: string | null;
+          phone: string | null;
+          supervisor_name: string | null;
+          supervisor_email: string | null;
+          proposed_start: string | null;
+          proposed_end: string | null;
+          actual_start: string | null;
+          actual_end: string | null;
+          status: ResearchStatus;
+          approved_by: string | null;
+          approved_at: string | null;
+          created_by: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          code?: string;
+          title: string;
+          description?: string | null;
+          research_type?: ResearchType;
+          objective?: string | null;
+          researcher_user_id?: string | null;
+          researcher_name: string;
+          researcher_id_no?: string | null;
+          institution?: string | null;
+          email?: string | null;
+          phone?: string | null;
+          supervisor_name?: string | null;
+          supervisor_email?: string | null;
+          proposed_start?: string | null;
+          proposed_end?: string | null;
+          actual_start?: string | null;
+          actual_end?: string | null;
+          status?: ResearchStatus;
+          approved_by?: string | null;
+          approved_at?: string | null;
+          created_by?: string | null;
+        };
+        Update: Partial<Database["public"]["Tables"]["research_projects"]["Insert"]>;
+        Relationships: [];
+      };
+      research_hole_allocations: {
+        Row: {
+          id: number;
+          research_id: number;
+          hole_id: number;
+          treatment_label: string | null;
+          treatment_group: string | null;
+          reserved_from: string;
+          reserved_until: string;
+          released_at: string | null;
+          notes: string | null;
+          created_at: string;
+          created_by: string | null;
+        };
+        Insert: {
+          research_id: number;
+          hole_id: number;
+          treatment_label?: string | null;
+          treatment_group?: string | null;
+          reserved_from: string;
+          reserved_until: string;
+          released_at?: string | null;
+          notes?: string | null;
+          created_by?: string | null;
+        };
+        Update: Partial<Database["public"]["Tables"]["research_hole_allocations"]["Insert"]>;
+        Relationships: [];
+      };
+      research_progress_logs: {
+        Row: {
+          id: number;
+          research_id: number;
+          phase: string | null;
+          log_date: string;
+          summary: string;
+          metrics: Record<string, unknown> | null;
+          created_by: string | null;
+          created_at: string;
+        };
+        Insert: {
+          research_id: number;
+          phase?: string | null;
+          log_date?: string;
+          summary: string;
+          metrics?: Record<string, unknown> | null;
+          created_by?: string | null;
+        };
+        Update: Partial<Database["public"]["Tables"]["research_progress_logs"]["Insert"]>;
+        Relationships: [];
+      };
+      research_attachments: {
+        Row: {
+          id: number;
+          research_id: number;
+          progress_log_id: number | null;
+          kind: ResearchAttachmentKind;
+          storage_path: string;
+          filename: string | null;
+          notes: string | null;
+          uploaded_by: string | null;
+          created_at: string;
+        };
+        Insert: {
+          research_id: number;
+          progress_log_id?: number | null;
+          kind?: ResearchAttachmentKind;
+          storage_path: string;
+          filename?: string | null;
+          notes?: string | null;
+          uploaded_by?: string | null;
+        };
+        Update: Partial<Database["public"]["Tables"]["research_attachments"]["Insert"]>;
+        Relationships: [];
+      };
+      visits: {
+        Row: {
+          id: number;
+          code: string;
+          visit_type: VisitType;
+          purpose: string;
+          visit_date: string;
+          start_time: string | null;
+          end_time: string | null;
+          checked_in_at: string | null;
+          checked_out_at: string | null;
+          organization: string;
+          group_size: number;
+          host_user_id: string | null;
+          host_name: string | null;
+          areas_visited: string[] | null;
+          status: VisitStatus;
+          feedback_rating: number | null;
+          feedback_notes: string | null;
+          notes: string | null;
+          created_by: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          code?: string;
+          visit_type?: VisitType;
+          purpose: string;
+          visit_date: string;
+          start_time?: string | null;
+          end_time?: string | null;
+          checked_in_at?: string | null;
+          checked_out_at?: string | null;
+          organization: string;
+          group_size?: number;
+          host_user_id?: string | null;
+          host_name?: string | null;
+          areas_visited?: string[] | null;
+          status?: VisitStatus;
+          feedback_rating?: number | null;
+          feedback_notes?: string | null;
+          notes?: string | null;
+          created_by?: string | null;
+        };
+        Update: Partial<Database["public"]["Tables"]["visits"]["Insert"]>;
+        Relationships: [];
+      };
+      visit_contacts: {
+        Row: {
+          id: number;
+          visit_id: number;
+          name: string;
+          role: string | null;
+          email: string | null;
+          phone: string | null;
+          is_primary: boolean;
+          created_at: string;
+        };
+        Insert: {
+          visit_id: number;
+          name: string;
+          role?: string | null;
+          email?: string | null;
+          phone?: string | null;
+          is_primary?: boolean;
+        };
+        Update: Partial<Database["public"]["Tables"]["visit_contacts"]["Insert"]>;
+        Relationships: [];
+      };
+      visit_attachments: {
+        Row: {
+          id: number;
+          visit_id: number;
+          kind: VisitAttachmentKind;
+          storage_path: string;
+          filename: string | null;
+          notes: string | null;
+          uploaded_by: string | null;
+          created_at: string;
+        };
+        Insert: {
+          visit_id: number;
+          kind?: VisitAttachmentKind;
+          storage_path: string;
+          filename?: string | null;
+          notes?: string | null;
+          uploaded_by?: string | null;
+        };
+        Update: Partial<Database["public"]["Tables"]["visit_attachments"]["Insert"]>;
+        Relationships: [];
+      };
+      research_materials: {
+        Row: {
+          id: number;
+          research_id: number;
+          item_name: string;
+          qty: number | null;
+          unit: string | null;
+          expense_id: number | null;
+          notes: string | null;
+          created_at: string;
+          created_by: string | null;
+        };
+        Insert: {
+          research_id: number;
+          item_name: string;
+          qty?: number | null;
+          unit?: string | null;
+          expense_id?: number | null;
+          notes?: string | null;
+          created_by?: string | null;
+        };
+        Update: Partial<Database["public"]["Tables"]["research_materials"]["Insert"]>;
+        Relationships: [];
+      };
     };
     Views: Record<string, never>;
     Functions: Record<string, never>;
@@ -658,3 +1096,66 @@ export type SalesOrder = Database["public"]["Tables"]["sales_orders"]["Row"];
 export type SalesOrderItem = Database["public"]["Tables"]["sales_order_items"]["Row"];
 export type PaymentLog = Database["public"]["Tables"]["payment_logs"]["Row"];
 export type PriceHistory = Database["public"]["Tables"]["price_history"]["Row"];
+export type ResearchProject = Database["public"]["Tables"]["research_projects"]["Row"];
+export type ResearchHoleAllocation = Database["public"]["Tables"]["research_hole_allocations"]["Row"];
+export type ResearchProgressLog = Database["public"]["Tables"]["research_progress_logs"]["Row"];
+export type ResearchAttachment = Database["public"]["Tables"]["research_attachments"]["Row"];
+export type ResearchMaterial = Database["public"]["Tables"]["research_materials"]["Row"];
+export type Visit = Database["public"]["Tables"]["visits"]["Row"];
+export type VisitContact = Database["public"]["Tables"]["visit_contacts"]["Row"];
+export type VisitAttachment = Database["public"]["Tables"]["visit_attachments"]["Row"];
+
+// ============================================================
+// Inventory & Expenses
+// ============================================================
+
+export interface InventoryItem {
+  id: number;
+  name: string;
+  category: InventoryCategory;
+  sku: string | null;
+  unit: string;
+  current_stock: number;
+  min_stock: number | null;
+  unit_cost: number | null;
+  unit_price: number | null;
+  supplier: string | null;
+  notes: string | null;
+  crop_catalog_id: number | null;
+  is_active: boolean;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface InventoryTransaction {
+  id: number;
+  item_id: number;
+  txn_type: InventoryTxnType;
+  source: InventoryTxnSource;
+  quantity: number;
+  unit_cost: number | null;
+  total_cost: number | null;
+  reference_type: string | null;
+  reference_id: number | null;
+  notes: string | null;
+  recorded_by: string | null;
+  recorded_at: string;
+}
+
+export interface Expense {
+  id: number;
+  expense_date: string;
+  category: ExpenseCategory;
+  amount: number;
+  description: string;
+  vendor: string | null;
+  payment_method: ExpensePaymentMethod | null;
+  inventory_item_id: number | null;
+  quantity: number | null;
+  receipt_url: string | null;
+  notes: string | null;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+}

@@ -16,7 +16,10 @@ import {
   Clock,
   Calendar as CalendarIcon,
   Tag,
+  UserCheck,
+  FlaskConical,
 } from "lucide-react";
+import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import {
   Dialog,
@@ -26,6 +29,7 @@ import {
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { useLang } from "@/lib/i18n";
 
 /* ------------------------------------------------------------------ */
 /*  Types & constants                                                  */
@@ -36,20 +40,26 @@ interface CalendarEvent {
   date: string; // YYYY-MM-DD
   startHour: number; // 0-23
   endHour: number; // 0-23
-  type: "tanam" | "panen" | "lingkungan" | "nutrisi" | "order";
+  type: "tanam" | "panen" | "lingkungan" | "nutrisi" | "order" | "kunjungan" | "riset";
   title: string;
   subtitle?: string;
+  href?: string;   // optional navigation target for click-through
 }
 
 type ViewMode = "daily" | "weekly" | "monthly";
 type EventType = CalendarEvent["type"];
 
+// Event block styles — theme-aware so text stays legible on both modes.
+// Light: soft tint bg (/15) + dark ink text for contrast on white panels.
+// Dark:  stronger tint bg (/20) + pale text that pops on dark surfaces.
 const EVENT_STYLES: Record<EventType, string> = {
-  tanam: "bg-blue-500/20 border-l-blue-500 text-blue-200",
-  panen: "bg-teal-500/20 border-l-teal-500 text-teal-100",
-  lingkungan: "bg-amber-500/20 border-l-amber-500 text-amber-100",
-  nutrisi: "bg-purple-500/20 border-l-purple-500 text-purple-100",
-  order: "bg-green-500/20 border-l-green-500 text-green-100",
+  tanam:      "bg-blue-500/15   border-l-blue-500   text-blue-800   dark:bg-blue-500/20   dark:text-blue-200",
+  panen:      "bg-teal-500/15   border-l-teal-500   text-teal-800   dark:bg-teal-500/20   dark:text-teal-100",
+  lingkungan: "bg-amber-500/15  border-l-amber-500  text-amber-800  dark:bg-amber-500/20  dark:text-amber-100",
+  nutrisi:    "bg-purple-500/15 border-l-purple-500 text-purple-800 dark:bg-purple-500/20 dark:text-purple-100",
+  order:      "bg-green-500/15  border-l-green-500  text-green-800  dark:bg-green-500/20  dark:text-green-100",
+  kunjungan:  "bg-pink-500/15   border-l-pink-500   text-pink-800   dark:bg-pink-500/20   dark:text-pink-100",
+  riset:      "bg-violet-500/15 border-l-violet-500 text-violet-800 dark:bg-violet-500/20 dark:text-violet-100",
 };
 
 const EVENT_DOT_COLORS: Record<EventType, string> = {
@@ -58,6 +68,8 @@ const EVENT_DOT_COLORS: Record<EventType, string> = {
   lingkungan: "bg-amber-500",
   nutrisi: "bg-purple-500",
   order: "bg-green-500",
+  kunjungan: "bg-pink-500",
+  riset: "bg-violet-500",
 };
 
 const FILTER_CHECK_COLORS: Record<EventType, string> = {
@@ -66,14 +78,19 @@ const FILTER_CHECK_COLORS: Record<EventType, string> = {
   lingkungan: "accent-amber-500",
   nutrisi: "accent-purple-500",
   order: "accent-green-500",
+  kunjungan: "accent-pink-500",
+  riset: "accent-violet-500",
 };
 
-const EVENT_LABELS: Record<EventType, string> = {
-  tanam: "Tanam",
-  panen: "Panen",
-  lingkungan: "Lingkungan",
-  nutrisi: "Nutrisi",
-  order: "Order",
+// i18n keys for event labels — resolve via t() at usage site
+const EVENT_LABEL_KEYS: Record<EventType, string> = {
+  tanam: "cal.event.tanam",
+  panen: "cal.event.panen",
+  lingkungan: "cal.event.lingkungan",
+  nutrisi: "cal.event.nutrisi",
+  order: "cal.event.order",
+  kunjungan: "cal.event.kunjungan",
+  riset: "cal.event.riset",
 };
 
 const EVENT_ICONS: Record<EventType, React.ReactNode> = {
@@ -82,13 +99,24 @@ const EVENT_ICONS: Record<EventType, React.ReactNode> = {
   lingkungan: <Thermometer className="size-3.5" />,
   nutrisi: <Droplets className="size-3.5" />,
   order: <ShoppingCart className="size-3.5" />,
+  kunjungan: <UserCheck className="size-3.5" />,
+  riset: <FlaskConical className="size-3.5" />,
 };
 
 const MINI_DAY_HEADERS = ["S", "M", "T", "W", "T", "F", "S"];
-const WEEK_DAY_NAMES = ["Sen", "Sel", "Rab", "Kam", "Jum", "Sab", "Min"];
-const MONTH_NAMES = [
-  "Januari", "Februari", "Maret", "April", "Mei", "Juni",
-  "Juli", "Agustus", "September", "Oktober", "November", "Desember",
+// i18n keys — resolved at call site
+const WEEK_DAY_NAME_KEYS = [
+  "day_short.mon",
+  "day_short.tue",
+  "day_short.wed",
+  "day_short.thu",
+  "day_short.fri",
+  "day_short.sat",
+  "day_short.sun",
+];
+const MONTH_NAME_KEYS = [
+  "month.jan", "month.feb", "month.mar", "month.apr", "month.may", "month.jun",
+  "month.jul", "month.aug", "month.sep", "month.oct", "month.nov", "month.dec",
 ];
 
 const START_HOUR = 6;
@@ -159,8 +187,8 @@ function formatLongDate(d: Date): string {
   });
 }
 
-function formatShortDate(d: Date): string {
-  return `${MONTH_NAMES[d.getMonth()]} ${d.getDate()}, ${d.getFullYear()}`;
+function formatShortDate(d: Date, monthNames: string[]): string {
+  return `${monthNames[d.getMonth()]} ${d.getDate()}, ${d.getFullYear()}`;
 }
 
 function formatHour(h: number): string {
@@ -277,9 +305,21 @@ function layoutEventsWithOverflow(events: CalendarEvent[]): {
 /* ------------------------------------------------------------------ */
 
 export default function KalenderPage() {
+  const { t } = useLang();
   const supabase = createClient();
   const today = useMemo(() => new Date(), []);
   const todayStr = formatDate(today);
+
+  // Resolved translated arrays
+  const MONTH_NAMES = useMemo(() => MONTH_NAME_KEYS.map((k) => t(k)), [t]);
+  const WEEK_DAY_NAMES = useMemo(() => WEEK_DAY_NAME_KEYS.map((k) => t(k)), [t]);
+  const EVENT_LABELS = useMemo(() => {
+    const map: Record<EventType, string> = {} as Record<EventType, string>;
+    (Object.keys(EVENT_LABEL_KEYS) as EventType[]).forEach((k) => {
+      map[k] = t(EVENT_LABEL_KEYS[k]);
+    });
+    return map;
+  }, [t]);
 
   const [viewMode, setViewMode] = useState<ViewMode>("weekly");
   const [currentDate, setCurrentDate] = useState(new Date());
@@ -376,7 +416,7 @@ export default function KalenderPage() {
 
       if (cycles) {
         for (const c of cycles) {
-          const cropName = (c as any).crop_catalog?.name_id ?? "Tanaman";
+          const cropName = (c as any).crop_catalog?.name_id ?? t("cal.plant_default");
           if (c.planted_at) {
             const d = toDateStr(c.planted_at);
             if (d >= startDate && d <= endDate) {
@@ -387,7 +427,7 @@ export default function KalenderPage() {
                 startHour: hour,
                 endHour: hour + 1,
                 type: "tanam",
-                title: `Tanam ${cropName}`,
+                title: `${t("cal.tanam_prefix")} ${cropName}`,
               });
             }
           }
@@ -401,7 +441,7 @@ export default function KalenderPage() {
                 startHour: hour,
                 endHour: hour + 1,
                 type: "panen",
-                title: `Panen ${cropName}`,
+                title: `${t("cal.panen_prefix")} ${cropName}`,
               });
             }
           }
@@ -424,9 +464,9 @@ export default function KalenderPage() {
             startHour: hour,
             endHour: hour + 1,
             type: "lingkungan",
-            title: `Log lingkungan`,
+            title: t("cal.env_log"),
             subtitle: e.rack
-              ? `Rak ${e.rack}${e.tier != null ? ` T${e.tier}` : ""}`
+              ? `${t("cal.rack")} ${e.rack}${e.tier != null ? ` T${e.tier}` : ""}`
               : undefined,
           });
         }
@@ -448,7 +488,7 @@ export default function KalenderPage() {
             startHour: hour,
             endHour: hour + 1,
             type: "nutrisi",
-            title: `Nutrisi`,
+            title: t("cal.nutrisi_label"),
             subtitle: n.formula_name || undefined,
           });
         }
@@ -473,9 +513,84 @@ export default function KalenderPage() {
             startHour: hour,
             endHour: hour + 1,
             type: "order",
-            title: `Order`,
+            title: t("cal.order_label"),
             subtitle: custName || undefined,
           });
+        }
+      }
+
+      // visits -> kunjungan
+      const { data: visits } = await supabase
+        .from("visits")
+        .select("id, code, visit_date, start_time, end_time, organization, purpose, group_size, visit_type, status")
+        .gte("visit_date", startDate)
+        .lte("visit_date", endDate)
+        .neq("status", "cancelled");
+
+      if (visits) {
+        for (const v of visits) {
+          const startHour = v.start_time
+            ? parseInt(String(v.start_time).slice(0, 2), 10)
+            : 9;
+          const endHour = v.end_time
+            ? parseInt(String(v.end_time).slice(0, 2), 10)
+            : Math.min(startHour + 1, 22);
+          allEvents.push({
+            id: `visit-${v.id}`,
+            date: toDateStr(v.visit_date),
+            startHour: Number.isFinite(startHour) ? startHour : 9,
+            endHour: Number.isFinite(endHour) && endHour > startHour ? endHour : startHour + 1,
+            type: "kunjungan",
+            title: v.organization,
+            subtitle: `${v.purpose} · ${v.group_size} ${t("cal.purpose_orang")}`,
+            href: `/kunjungan/${v.id}`,
+          });
+        }
+      }
+
+      // research_projects -> riset (milestones: mulai + akhir)
+      const { data: researches } = await supabase
+        .from("research_projects")
+        .select("id, code, title, researcher_name, proposed_start, proposed_end, actual_start, actual_end, status")
+        .or(
+          `proposed_start.gte.${startDate},proposed_start.lte.${endDate},proposed_end.gte.${startDate},proposed_end.lte.${endDate},actual_start.gte.${startDate},actual_start.lte.${endDate},actual_end.gte.${startDate},actual_end.lte.${endDate}`
+        )
+        .neq("status", "cancelled");
+
+      if (researches) {
+        for (const r of researches) {
+          const startDay = (r.actual_start as string | null) ?? (r.proposed_start as string | null);
+          const endDay = (r.actual_end as string | null) ?? (r.proposed_end as string | null);
+          if (startDay) {
+            const ds = toDateStr(startDay);
+            if (ds >= startDate && ds <= endDate) {
+              allEvents.push({
+                id: `riset-start-${r.id}`,
+                date: ds,
+                startHour: 8,
+                endHour: 9,
+                type: "riset",
+                title: `${t("cal.start_prefix")}${r.title}`,
+                subtitle: `${r.code} · ${r.researcher_name}`,
+                href: `/riset/${r.id}`,
+              });
+            }
+          }
+          if (endDay) {
+            const de = toDateStr(endDay);
+            if (de >= startDate && de <= endDate) {
+              allEvents.push({
+                id: `riset-end-${r.id}`,
+                date: de,
+                startHour: 16,
+                endHour: 17,
+                type: "riset",
+                title: `${t("cal.deadline_prefix")}${r.title}`,
+                subtitle: `${r.code} · ${r.researcher_name}`,
+                href: `/riset/${r.id}`,
+              });
+            }
+          }
         }
       }
 
@@ -573,7 +688,7 @@ export default function KalenderPage() {
   /* ---------- header text ------------------------------------------ */
 
   const headerLabel = useMemo(() => {
-    if (viewMode === "daily") return formatShortDate(currentDate);
+    if (viewMode === "daily") return formatShortDate(currentDate, MONTH_NAMES);
     if (viewMode === "weekly") {
       const start = weekDays[0];
       const end = weekDays[6];
@@ -583,7 +698,7 @@ export default function KalenderPage() {
       return `${MONTH_NAMES[start.getMonth()]} ${start.getDate()} - ${MONTH_NAMES[end.getMonth()]} ${end.getDate()}, ${end.getFullYear()}`;
     }
     return `${MONTH_NAMES[currentDate.getMonth()]} ${currentDate.getFullYear()}`;
-  }, [viewMode, currentDate, weekDays]);
+  }, [viewMode, currentDate, weekDays, MONTH_NAMES]);
 
   /* ================================================================== */
   /*  RENDER                                                             */
@@ -641,7 +756,7 @@ export default function KalenderPage() {
                   onClick={() => setCurrentDate(new Date(d))}
                   className={cn(
                     "h-7 w-7 rounded-full text-[11px] flex items-center justify-center cursor-pointer transition-colors",
-                    isToday && "bg-[oklch(0.65_0.18_260)] text-white font-bold",
+                    isToday && "bg-primary text-white font-bold",
                     !isToday && isSelected && "bg-secondary text-foreground",
                     !isToday && !isSelected && inWeek && "bg-secondary/40 text-foreground",
                     !isToday && !isSelected && !inWeek && "text-muted-foreground hover:bg-secondary/30"
@@ -661,7 +776,7 @@ export default function KalenderPage() {
           {todayEvents.length === 0 ? (
             <div className="rounded-xl bg-secondary/50 border border-border/40 p-3 text-center">
               <p className="text-[11px] text-muted-foreground">
-                Tidak ada event hari ini
+                {t("cal.no_event_today")}
               </p>
             </div>
           ) : (
@@ -670,7 +785,7 @@ export default function KalenderPage() {
               className="rounded-xl bg-gradient-to-br from-[oklch(0.45_0.12_180)] to-[oklch(0.40_0.14_190)] p-4 cursor-pointer hover:brightness-110 transition-all text-white shadow-lg shadow-[oklch(0.40_0.14_190)/0.3]"
             >
               <p className="text-[10px] opacity-80 uppercase tracking-wider mb-1">
-                Pengingat
+                {t("cal.reminder")}
               </p>
               <div className="flex items-center gap-1.5 mb-2">
                 <span>{EVENT_ICONS[todayEvents[0].type]}</span>
@@ -687,7 +802,7 @@ export default function KalenderPage() {
               </div>
               {todayEvents.length > 1 && (
                 <p className="text-[10px] opacity-70 mt-2 border-t border-white/20 pt-2">
-                  +{todayEvents.length - 1} event lainnya hari ini
+                  +{todayEvents.length - 1} {t("cal.event_others")}
                 </p>
               )}
             </div>
@@ -699,7 +814,7 @@ export default function KalenderPage() {
         {/* Filters */}
         <div>
           <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">
-            Filter
+            {t("cal.filter")}
           </h3>
           <div className="space-y-2">
             {(Object.keys(EVENT_LABELS) as EventType[]).map((type) => (
@@ -757,7 +872,7 @@ export default function KalenderPage() {
               onClick={goToday}
               className="h-7 text-[11px] ml-1"
             >
-              Hari ini
+              {t("cal.today")}
             </Button>
           </div>
 
@@ -766,9 +881,9 @@ export default function KalenderPage() {
             <div className="flex rounded-md border border-border/50 overflow-hidden">
               {(
                 [
-                  ["daily", "Harian"],
-                  ["weekly", "Mingguan"],
-                  ["monthly", "Bulanan"],
+                  ["daily", t("cal.daily")],
+                  ["weekly", t("cal.weekly")],
+                  ["monthly", t("cal.monthly")],
                 ] as [ViewMode, string][]
               ).map(([mode, label]) => (
                 <button
@@ -789,10 +904,10 @@ export default function KalenderPage() {
             <Button
               size="sm"
               className="h-8 text-[12px] gap-1.5 rounded-full bg-amber-400 hover:bg-amber-500 text-zinc-900 font-semibold shadow-md shadow-amber-500/20"
-              onClick={() => toast.info("Fitur ini akan segera hadir!")}
+              onClick={() => toast.info(t("common.coming_soon"))}
             >
               <Plus className="size-3.5" />
-              <span className="hidden sm:inline">Buat Event</span>
+              <span className="hidden sm:inline">{t("cal.create_event")}</span>
             </Button>
           </div>
         </div>
@@ -801,7 +916,7 @@ export default function KalenderPage() {
         {loading && (
           <div className="flex items-center justify-center py-8">
             <p className="text-xs text-muted-foreground animate-pulse">
-              Memuat data...
+              {t("cal.loading")}
             </p>
           </div>
         )}
@@ -821,12 +936,12 @@ export default function KalenderPage() {
                     key={i}
                     className={cn(
                       "h-16 flex flex-col items-center justify-center border-l border-border/20 transition-colors",
-                      isToday && "bg-[oklch(0.65_0.18_260/0.10)]"
+                      isToday && "bg-primary/10"
                     )}
                   >
                     <span className={cn(
                       "text-[10px] uppercase tracking-wider",
-                      isToday ? "text-[oklch(0.75_0.15_260)] font-medium" : "text-muted-foreground"
+                      isToday ? "text-primary font-medium" : "text-muted-foreground"
                     )}>
                       {WEEK_DAY_NAMES[i]}
                     </span>
@@ -834,7 +949,7 @@ export default function KalenderPage() {
                       className={cn(
                         "text-2xl font-bold mt-0.5",
                         isToday
-                          ? "text-[oklch(0.75_0.15_260)]"
+                          ? "text-primary"
                           : "text-foreground"
                       )}
                     >
@@ -925,7 +1040,7 @@ export default function KalenderPage() {
                         }}
                       >
                         <span className="text-[14px] font-bold leading-none">+{ov.hiddenEvents.length}</span>
-                        <span className="text-[9px] opacity-70 mt-0.5">lainnya</span>
+                        <span className="text-[9px] opacity-70 mt-0.5">{t("cal.others_more")}</span>
                       </button>
                     ))}
                   </div>
@@ -1087,13 +1202,29 @@ export default function KalenderPage() {
                         EVENT_STYLES[selectedEvent.type]
                       )}
                     >
-                      {selectedEvent.type.charAt(0).toUpperCase() +
-                        selectedEvent.type.slice(1)}
+                      {EVENT_LABELS[selectedEvent.type]}
                     </Badge>
                   </div>
                   {selectedEvent.subtitle && (
                     <div className="text-[13px] text-muted-foreground">
                       {selectedEvent.subtitle}
+                    </div>
+                  )}
+                  {selectedEvent.href && (
+                    <div className="pt-2">
+                      <Button
+                        asChild
+                        className="w-full h-10 bg-primary hover:bg-primary/90 text-white"
+                      >
+                        <Link
+                          href={selectedEvent.href}
+                          className="inline-flex items-center justify-center gap-1.5"
+                          onClick={() => setSelectedEvent(null)}
+                        >
+                          {t("common.open_detail")}
+                          <ChevronRight className="h-4 w-4" />
+                        </Link>
+                      </Button>
                     </div>
                   )}
                 </div>
@@ -1114,7 +1245,7 @@ export default function KalenderPage() {
               <>
                 <DialogHeader className="px-5 pt-5 pb-3">
                   <DialogTitle className="text-base">
-                    {overflowView.hiddenEvents.length} Event Lainnya
+                    {overflowView.hiddenEvents.length} {t("cal.overflow_other")}
                   </DialogTitle>
                   <p className="text-[12px] text-muted-foreground mt-1">
                     {new Date(overflowView.date).toLocaleDateString("id-ID", {
@@ -1202,6 +1333,8 @@ function MonthlyView({
   eventsByDate: Record<string, CalendarEvent[]>;
   onSelectDay: (d: Date) => void;
 }) {
+  const { t } = useLang();
+  const WEEK_DAY_NAMES = useMemo(() => WEEK_DAY_NAME_KEYS.map((k) => t(k)), [t]);
   const year = currentDate.getFullYear();
   const month = currentDate.getMonth();
   const days = useMemo(() => getDaysInMonth(year, month), [year, month]);
@@ -1255,7 +1388,7 @@ function MonthlyView({
               className={cn(
                 "rounded-lg border p-1.5 min-h-[80px] cursor-pointer transition-colors",
                 isToday
-                  ? "border-[oklch(0.65_0.18_260)] bg-[oklch(0.65_0.18_260/0.06)]"
+                  ? "border-primary bg-primary/10"
                   : "border-border/20 bg-card hover:bg-secondary/20"
               )}
             >
@@ -1263,7 +1396,7 @@ function MonthlyView({
                 className={cn(
                   "text-xs font-medium",
                   isToday
-                    ? "text-[oklch(0.65_0.18_260)]"
+                    ? "text-primary"
                     : "text-foreground"
                 )}
               >

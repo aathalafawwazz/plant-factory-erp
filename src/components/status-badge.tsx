@@ -1,7 +1,11 @@
+"use client";
+
 import { HOLE_STATUS, type HoleStatus } from "@/lib/constants";
 import { cn } from "@/lib/utils";
+import { useLang } from "@/lib/i18n";
 
 export function StatusBadge({ status }: { status: HoleStatus }) {
+  const { t } = useLang();
   const config = HOLE_STATUS[status];
   if (!config) return <span className="text-xs text-muted-foreground">{status}</span>;
   return (
@@ -12,7 +16,7 @@ export function StatusBadge({ status }: { status: HoleStatus }) {
       )}
     >
       <span className={cn("h-1.5 w-1.5 rounded-full", config.dotColor)} />
-      {config.label}
+      {t(config.labelKey)}
     </span>
   );
 }

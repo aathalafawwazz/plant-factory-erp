@@ -13,27 +13,24 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Separator } from "@/components/ui/separator";
 import { toast } from "sonner";
 import { Plus, ArrowUpDown, List, LayoutGrid, ShoppingCart, Trash2, Printer, AlertTriangle } from "lucide-react";
+import { useLang } from "@/lib/i18n";
+import { translateCommodity } from "@/lib/translate-helpers";
 
 /* ---- Constants ---- */
-const ORDER_STATUS: Record<string, { label: string; color: string }> = {
-  pending: { label: "Menunggu", color: "bg-amber-500/20 text-amber-400" },
-  confirmed: { label: "Dikonfirmasi", color: "bg-sky-500/20 text-sky-400" },
-  delivered: { label: "Dikirim", color: "bg-emerald-500/20 text-emerald-400" },
-  paid: { label: "Lunas", color: "bg-green-500/20 text-green-400" },
-  cancelled: { label: "Dibatalkan", color: "bg-red-500/20 text-red-400" },
+const ORDER_STATUS_COLOR: Record<string, string> = {
+  pending: "bg-amber-500/20 text-amber-400",
+  confirmed: "bg-sky-500/20 text-sky-400",
+  delivered: "bg-emerald-500/20 text-emerald-400",
+  paid: "bg-green-500/20 text-green-400",
+  cancelled: "bg-red-500/20 text-red-400",
 };
-const PAYMENT_STATUS: Record<string, { label: string; color: string }> = {
-  unpaid: { label: "Belum Bayar", color: "bg-red-500/20 text-red-400" },
-  partial: { label: "Sebagian", color: "bg-amber-500/20 text-amber-400" },
-  paid: { label: "Lunas", color: "bg-green-500/20 text-green-400" },
+const PAYMENT_STATUS_COLOR: Record<string, string> = {
+  unpaid: "bg-red-500/20 text-red-400",
+  partial: "bg-amber-500/20 text-amber-400",
+  paid: "bg-green-500/20 text-green-400",
 };
-const PAY_METHODS = [
-  { value: "tunai", label: "Tunai" },
-  { value: "transfer", label: "Transfer" },
-  { value: "invoice", label: "Invoice" },
-];
+const PAY_METHOD_VALUES = ["tunai", "transfer", "invoice"] as const;
 const GRADES = ["A", "B", "C"];
-const SORT_LABELS: Record<string, string> = { date_desc: "Terbaru", date_asc: "Terlama", total_desc: "Total Tertinggi" };
 
 /* ---- Types ---- */
 interface Customer { id: number; name: string; phone: string | null; address: string | null }
@@ -59,6 +56,29 @@ function gt(o: SalesOrder) { return o.grand_total ?? o.total_amount; }
 /* ---- Component ---- */
 export default function SalesOrderPage() {
   const supabase = createClient();
+  const { t, lang } = useLang();
+  const ORDER_STATUS_LABEL: Record<string, string> = {
+    pending: t("sales.menunggu"),
+    confirmed: t("sales.dikonfirmasi"),
+    delivered: t("sales.dikirim"),
+    paid: t("sales.lunas"),
+    cancelled: t("sales.dibatalkan"),
+  };
+  const PAYMENT_STATUS_LABEL: Record<string, string> = {
+    unpaid: t("sales.belum_bayar"),
+    partial: t("sales.sebagian"),
+    paid: t("sales.lunas"),
+  };
+  const PAY_METHOD_LABEL: Record<string, string> = {
+    tunai: t("sales.method_tunai"),
+    transfer: t("sales.method_transfer"),
+    invoice: t("sales.method_invoice"),
+  };
+  const SORT_LABELS: Record<string, string> = {
+    date_desc: t("sales.sort_newest"),
+    date_asc: t("sales.sort_terlama"),
+    total_desc: t("sales.sort_total_desc"),
+  };
   const [orders, setOrders] = useState<SalesOrder[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [crops, setCrops] = useState<Crop[]>([]);
@@ -174,9 +194,9 @@ export default function SalesOrderPage() {
 
   /* ---- Create ---- */
   async function handleCreate() {
-    if (!formCust) { toast.error("Pilih pelanggan"); return; }
+    if (!formCust) { toast.error(t("sales.select_customer")); return; }
     const valid = formItems.filter((i) => i.crop_catalog_id && i.quantity_kg > 0);
-    if (!valid.length) { toast.error("Tambahkan minimal 1 item"); return; }
+    if (!valid.length) { toast.error(t("sales.add_min_item")); return; }
     setSaving(true);
     const subtotal = valid.reduce((s, i) => s + i.quantity_kg * i.price_per_kg, 0);
     const tax = (subtotal - formDisc) * formTax / 100;
@@ -187,12 +207,12 @@ export default function SalesOrderPage() {
       payment_status: "unpaid", payment_method: formPay || null,
       due_date: formDue || null, notes: formNotes || null,
     }).select("id").single();
-    if (e1 || !ord) { toast.error("Gagal membuat order: " + (e1?.message ?? "")); setSaving(false); return; }
+    if (e1 || !ord) { toast.error(t("sales.failed_create_order") + (e1?.message ?? "")); setSaving(false); return; }
     const rows = valid.map((i) => ({ order_id: ord.id, crop_catalog_id: i.crop_catalog_id!, quantity_kg: i.quantity_kg, unit_price: i.price_per_kg, quality_grade: i.grade || null, subtotal: i.quantity_kg * i.price_per_kg }));
     const { error: e2 } = await supabase.from("sales_order_items").insert(rows);
-    if (e2) { toast.error("Gagal menyimpan item: " + e2.message); setSaving(false); return; }
+    if (e2) { toast.error(t("sales.failed_save_items") + e2.message); setSaving(false); return; }
     await supabase.from("price_history").insert(valid.map((i) => ({ crop_catalog_id: i.crop_catalog_id!, quality_grade: i.grade || null, price_per_kg: i.price_per_kg })));
-    toast.success("Order berhasil dibuat"); setSaving(false); setCreateOpen(false); resetForm(); loadData(); loadStock();
+    toast.success(t("sales.order_created")); setSaving(false); setCreateOpen(false); resetForm(); loadData(); loadStock();
   }
   function resetForm() { setFormCust(""); setFormPay("Tunai"); setFormNotes(""); setFormDue(""); setFormDisc(0); setFormTax(0); setHints({}); setFormItems([{ crop_catalog_id: null, quantity_kg: 0, price_per_kg: 0, grade: "A", subtotal: 0 }]); }
 
@@ -203,8 +223,8 @@ export default function SalesOrderPage() {
     const upd: { status: string; payment_status?: string } = { status: detailStatus };
     if (detailStatus === "paid") upd.payment_status = "paid";
     const { error } = await supabase.from("sales_orders").update(upd).eq("id", detailOrder.id);
-    if (error) toast.error("Gagal update status: " + error.message);
-    else { toast.success("Status berhasil diubah"); setDetailOpen(false); loadData(); }
+    if (error) toast.error(t("sales.failed_update_status") + error.message);
+    else { toast.success(t("sales.status_updated")); setDetailOpen(false); loadData(); }
     setUpdatingStatus(false);
   }
 
@@ -214,16 +234,16 @@ export default function SalesOrderPage() {
     setPayLogs((data as PayLog[]) ?? []);
   }
   async function handleSavePay() {
-    if (!detailOrder || payAmt <= 0) { toast.error("Jumlah harus > 0"); return; }
+    if (!detailOrder || payAmt <= 0) { toast.error(t("sales.amount_gt_0")); return; }
     setSavingPay(true);
     const { error } = await supabase.from("payment_logs").insert({ order_id: detailOrder.id, amount: payAmt, method: payMeth || null, reference: payRef || null, notes: payNote || null });
-    if (error) { toast.error("Gagal: " + error.message); setSavingPay(false); return; }
+    if (error) { toast.error(t("sales.failed_prefix") + error.message); setSavingPay(false); return; }
     const { data: all } = await supabase.from("payment_logs").select("amount").eq("order_id", detailOrder.id);
     const tot = (all ?? []).reduce((s, p) => s + (p.amount ?? 0), 0);
     const g = gt(detailOrder);
     const ps = tot >= g ? "paid" : tot > 0 ? "partial" : "unpaid";
     await supabase.from("sales_orders").update({ payment_status: ps }).eq("id", detailOrder.id);
-    toast.success("Pembayaran tercatat"); setSavingPay(false); setPayOpen(false);
+    toast.success(t("sales.payment_recorded")); setSavingPay(false); setPayOpen(false);
     setPayAmt(0); setPayMeth("tunai"); setPayRef(""); setPayNote("");
     loadPay(detailOrder.id); loadData();
   }
@@ -237,9 +257,9 @@ export default function SalesOrderPage() {
     <style>{`@media print{body *{visibility:hidden!important}#print-invoice,#print-invoice *{visibility:visible!important}#print-invoice{position:absolute;left:0;top:0;width:100%;background:#fff;color:#000;padding:24px}#print-invoice table{border-collapse:collapse;width:100%}#print-invoice th,#print-invoice td{border:1px solid #ccc;padding:6px 10px;text-align:left;font-size:13px}#print-invoice th{background:#f5f5f5;font-weight:600}#print-invoice .tr{text-align:right}}@media screen{#print-invoice{display:none}}`}</style>
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-lg font-semibold text-foreground">Sales Order</h1>
-        <Button className="h-9 bg-[oklch(0.65_0.18_260)] text-white text-[13px] hover:bg-[oklch(0.60_0.20_260)]" onClick={() => { resetForm(); setCreateOpen(true); }}>
-          <Plus className="w-4 h-4 mr-1.5" />Buat Order
+        <h1 className="text-lg font-semibold text-foreground">{t("sales.dashboard")}</h1>
+        <Button className="h-9 bg-primary text-white text-[13px] hover:bg-primary/90" onClick={() => { resetForm(); setCreateOpen(true); }}>
+          <Plus className="w-4 h-4 mr-1.5" />{t("sales.create_order")}
         </Button>
       </div>
       {/* Toolbar */}
@@ -252,11 +272,11 @@ export default function SalesOrderPage() {
         </Select>
         <Select value={statusFilter} onValueChange={(v) => v !== null && setStatusFilter(v)}>
           <SelectTrigger className="w-[160px] h-9 bg-secondary border-border/50 text-[13px]">
-            <SelectValue>{statusFilter === "all" ? "Semua" : ORDER_STATUS[statusFilter]?.label ?? statusFilter}</SelectValue>
+            <SelectValue>{statusFilter === "all" ? t("sales.all") : ORDER_STATUS_LABEL[statusFilter] ?? statusFilter}</SelectValue>
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">Semua</SelectItem>
-            {Object.entries(ORDER_STATUS).map(([k, v]) => <SelectItem key={k} value={k}>{v.label}</SelectItem>)}
+            <SelectItem value="all">{t("sales.all")}</SelectItem>
+            {Object.keys(ORDER_STATUS_COLOR).map((k) => <SelectItem key={k} value={k}>{ORDER_STATUS_LABEL[k]}</SelectItem>)}
           </SelectContent>
         </Select>
         <div className="ml-auto flex items-center gap-1">
@@ -264,35 +284,35 @@ export default function SalesOrderPage() {
           <Button variant={view === "grid" ? "secondary" : "ghost"} size="icon" className="h-9 w-9" onClick={() => setView("grid")}><LayoutGrid className="w-4 h-4" /></Button>
         </div>
       </div>
-      {loading && <Card className="rounded-xl border border-border/40 bg-card"><CardContent className="py-12 text-center text-muted-foreground">Memuat data order...</CardContent></Card>}
-      {!loading && filtered.length === 0 && <Card className="rounded-xl border border-border/40 bg-card"><CardContent className="py-16 text-center"><ShoppingCart className="w-10 h-10 text-muted-foreground/40 mx-auto mb-3" /><p className="text-sm text-muted-foreground">Belum ada order.</p></CardContent></Card>}
+      {loading && <Card className="rounded-xl border border-border/40 bg-card"><CardContent className="py-12 text-center text-muted-foreground">{t("sales.loading_orders_data")}</CardContent></Card>}
+      {!loading && filtered.length === 0 && <Card className="rounded-xl border border-border/40 bg-card"><CardContent className="py-16 text-center"><ShoppingCart className="w-10 h-10 text-muted-foreground/40 mx-auto mb-3" /><p className="text-sm text-muted-foreground">{t("sales.no_orders")}</p></CardContent></Card>}
       {/* Table view */}
       {!loading && filtered.length > 0 && view === "list" && (
         <div className="rounded-xl border border-border/40 bg-card overflow-hidden">
           <Table>
             <TableHeader><TableRow>
-              <TableHead className="text-[12px] text-muted-foreground">No. Order</TableHead>
-              <TableHead className="text-[12px] text-muted-foreground">Tanggal</TableHead>
-              <TableHead className="text-[12px] text-muted-foreground">Pelanggan</TableHead>
-              <TableHead className="text-[12px] text-muted-foreground">Items</TableHead>
-              <TableHead className="text-[12px] text-muted-foreground text-right">Grand Total</TableHead>
-              <TableHead className="text-[12px] text-muted-foreground">Status</TableHead>
-              <TableHead className="text-[12px] text-muted-foreground">Pembayaran</TableHead>
+              <TableHead className="text-[12px] text-muted-foreground">{t("sales.col_order_no")}</TableHead>
+              <TableHead className="text-[12px] text-muted-foreground">{t("sales.col_date")}</TableHead>
+              <TableHead className="text-[12px] text-muted-foreground">{t("sales.col_customer")}</TableHead>
+              <TableHead className="text-[12px] text-muted-foreground">{t("sales.col_items")}</TableHead>
+              <TableHead className="text-[12px] text-muted-foreground text-right">{t("sales.col_grand_total")}</TableHead>
+              <TableHead className="text-[12px] text-muted-foreground">{t("sales.col_status")}</TableHead>
+              <TableHead className="text-[12px] text-muted-foreground">{t("sales.col_payment")}</TableHead>
             </TableRow></TableHeader>
             <TableBody>{filtered.map((o) => (
               <TableRow key={o.id} className="cursor-pointer hover:bg-secondary/50" onClick={() => openDetail(o)}>
                 <TableCell className="text-[13px] font-mono">{orderLabel(o)}</TableCell>
                 <TableCell className="text-[13px]">{fmtDate(o.created_at)}</TableCell>
                 <TableCell className="text-[13px]">{o.customers?.name ?? "-"}</TableCell>
-                <TableCell className="text-[13px]">{o.sales_order_items.map((i) => i.crop_catalog?.name_id ?? "?").join(", ")}</TableCell>
+                <TableCell className="text-[13px]">{o.sales_order_items.map((i) => translateCommodity(i.crop_catalog?.name_id ?? "?", lang)).join(", ")}</TableCell>
                 <TableCell className="text-[13px] text-right font-medium">{fmtCurrency.format(gt(o))}</TableCell>
                 <TableCell>
                   <div className="flex items-center gap-1.5">
-                    <Badge variant="outline" className={`text-[11px] border-0 ${ORDER_STATUS[o.status]?.color ?? ""}`}>{ORDER_STATUS[o.status]?.label ?? o.status}</Badge>
-                    {isOverdue(o) && <Badge variant="outline" className="text-[10px] border-0 bg-red-500/20 text-red-400"><AlertTriangle className="w-3 h-3 mr-0.5" />Jatuh Tempo</Badge>}
+                    <Badge variant="outline" className={`text-[11px] border-0 ${ORDER_STATUS_COLOR[o.status] ?? ""}`}>{ORDER_STATUS_LABEL[o.status] ?? o.status}</Badge>
+                    {isOverdue(o) && <Badge variant="outline" className="text-[10px] border-0 bg-red-500/20 text-red-400"><AlertTriangle className="w-3 h-3 mr-0.5" />{t("sales.overdue")}</Badge>}
                   </div>
                 </TableCell>
-                <TableCell><Badge variant="outline" className={`text-[11px] border-0 ${PAYMENT_STATUS[o.payment_status]?.color ?? ""}`}>{PAYMENT_STATUS[o.payment_status]?.label ?? o.payment_status}</Badge></TableCell>
+                <TableCell><Badge variant="outline" className={`text-[11px] border-0 ${PAYMENT_STATUS_COLOR[o.payment_status] ?? ""}`}>{PAYMENT_STATUS_LABEL[o.payment_status] ?? o.payment_status}</Badge></TableCell>
               </TableRow>
             ))}</TableBody>
           </Table>
@@ -308,12 +328,12 @@ export default function SalesOrderPage() {
                   <div><p className="text-[12px] text-muted-foreground">{fmtDate(o.created_at)}</p><p className="text-[14px] font-medium text-foreground">{o.customers?.name ?? "-"}</p></div>
                   <p className="text-[11px] font-mono text-muted-foreground">{orderLabel(o)}</p>
                 </div>
-                <p className="text-[13px] text-muted-foreground">{o.sales_order_items.map((i) => `${i.crop_catalog?.name_id ?? "?"} (${i.quantity_kg} kg)`).join(", ")}</p>
+                <p className="text-[13px] text-muted-foreground">{o.sales_order_items.map((i) => `${translateCommodity(i.crop_catalog?.name_id ?? "?", lang)} (${i.quantity_kg} kg)`).join(", ")}</p>
                 <p className="text-xl font-bold text-foreground">{fmtCurrency.format(gt(o))}</p>
                 <div className="flex items-center gap-2 flex-wrap">
-                  <Badge variant="outline" className={`text-[11px] border-0 ${ORDER_STATUS[o.status]?.color ?? ""}`}>{ORDER_STATUS[o.status]?.label ?? o.status}</Badge>
-                  <Badge variant="outline" className={`text-[11px] border-0 ${PAYMENT_STATUS[o.payment_status]?.color ?? ""}`}>{PAYMENT_STATUS[o.payment_status]?.label ?? o.payment_status}</Badge>
-                  {isOverdue(o) && <Badge variant="outline" className="text-[10px] border-0 bg-red-500/20 text-red-400"><AlertTriangle className="w-3 h-3 mr-0.5" />Jatuh Tempo</Badge>}
+                  <Badge variant="outline" className={`text-[11px] border-0 ${ORDER_STATUS_COLOR[o.status] ?? ""}`}>{ORDER_STATUS_LABEL[o.status] ?? o.status}</Badge>
+                  <Badge variant="outline" className={`text-[11px] border-0 ${PAYMENT_STATUS_COLOR[o.payment_status] ?? ""}`}>{PAYMENT_STATUS_LABEL[o.payment_status] ?? o.payment_status}</Badge>
+                  {isOverdue(o) && <Badge variant="outline" className="text-[10px] border-0 bg-red-500/20 text-red-400"><AlertTriangle className="w-3 h-3 mr-0.5" />{t("sales.overdue")}</Badge>}
                 </div>
               </CardContent>
             </Card>
@@ -325,13 +345,13 @@ export default function SalesOrderPage() {
     {/* ==== Create Order Dialog ==== */}
     <Dialog open={createOpen} onOpenChange={setCreateOpen}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto bg-card border-border/40">
-        <DialogHeader><DialogTitle className="text-foreground">Buat Order Baru</DialogTitle></DialogHeader>
+        <DialogHeader><DialogTitle className="text-foreground">{t("sales.create_new_order")}</DialogTitle></DialogHeader>
         <div className="space-y-4 mt-2">
           <div className="space-y-1.5">
-            <Label className="text-[13px] text-muted-foreground">Pelanggan <span className="text-red-400">*</span></Label>
+            <Label className="text-[13px] text-muted-foreground">{t("sales.customer")} <span className="text-red-400">*</span></Label>
             <Select value={formCust} onValueChange={(v) => v !== null && setFormCust(v)}>
               <SelectTrigger className="h-11 bg-secondary border-border/50">
-                <SelectValue>{formCust ? customers.find((c) => String(c.id) === formCust)?.name ?? "Pilih pelanggan" : "Pilih pelanggan"}</SelectValue>
+                <SelectValue>{formCust ? customers.find((c) => String(c.id) === formCust)?.name ?? t("sales.select_customer") : t("sales.select_customer")}</SelectValue>
               </SelectTrigger>
               <SelectContent>{customers.map((c) => <SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>)}</SelectContent>
             </Select>
@@ -339,7 +359,7 @@ export default function SalesOrderPage() {
           <Separator />
           {/* Items */}
           <div className="space-y-3">
-            <Label className="text-[13px] text-muted-foreground">Item Order</Label>
+            <Label className="text-[13px] text-muted-foreground">{t("sales.order_item")}</Label>
             {formItems.map((item, idx) => {
               const stk = stockOf(item.crop_catalog_id);
               const hk = `${item.crop_catalog_id}-${item.grade}`;
@@ -347,85 +367,85 @@ export default function SalesOrderPage() {
               return (
                 <div key={idx} className="rounded-lg border border-border/40 bg-secondary/30 p-3 space-y-3">
                   <div className="flex items-center justify-between">
-                    <span className="text-[12px] text-muted-foreground font-medium">Item #{idx + 1}</span>
+                    <span className="text-[12px] text-muted-foreground font-medium">{t("sales.item_label")} #{idx + 1}</span>
                     {formItems.length > 1 && <Button variant="ghost" size="icon" className="h-7 w-7 text-red-400 hover:text-red-300" onClick={() => removeItem(idx)}><Trash2 className="w-3.5 h-3.5" /></Button>}
                   </div>
                   <div className="grid grid-cols-2 gap-3">
                     <div className="space-y-1">
-                      <Label className="text-[12px] text-muted-foreground">Komoditas</Label>
+                      <Label className="text-[12px] text-muted-foreground">{t("sales.commodity")}</Label>
                       <Select value={item.crop_catalog_id ? String(item.crop_catalog_id) : ""} onValueChange={(v) => v !== null && updateItem(idx, "crop_catalog_id", Number(v))}>
                         <SelectTrigger className="h-9 bg-secondary border-border/50 text-[13px]">
-                          <SelectValue>{item.crop_catalog_id ? crops.find((c) => c.id === item.crop_catalog_id)?.name_id ?? "Pilih" : "Pilih komoditas"}</SelectValue>
+                          <SelectValue>{item.crop_catalog_id ? translateCommodity(crops.find((c) => c.id === item.crop_catalog_id)?.name_id ?? t("sales.select"), lang) : t("sales.select_commodity")}</SelectValue>
                         </SelectTrigger>
-                        <SelectContent>{crops.map((c) => <SelectItem key={c.id} value={String(c.id)}>{c.name_id}</SelectItem>)}</SelectContent>
+                        <SelectContent>{crops.map((c) => <SelectItem key={c.id} value={String(c.id)}>{translateCommodity(c.name_id, lang)}</SelectItem>)}</SelectContent>
                       </Select>
                     </div>
                     <div className="space-y-1">
-                      <Label className="text-[12px] text-muted-foreground">Grade</Label>
+                      <Label className="text-[12px] text-muted-foreground">{t("sales.grade")}</Label>
                       <Select value={item.grade} onValueChange={(v) => v !== null && updateItem(idx, "grade", v)}>
                         <SelectTrigger className="h-9 bg-secondary border-border/50 text-[13px]"><SelectValue>{item.grade}</SelectValue></SelectTrigger>
-                        <SelectContent>{GRADES.map((g) => <SelectItem key={g} value={g}>Grade {g}</SelectItem>)}</SelectContent>
+                        <SelectContent>{GRADES.map((g) => <SelectItem key={g} value={g}>{t("sales.grade")} {g}</SelectItem>)}</SelectContent>
                       </Select>
                     </div>
                     <div className="space-y-1">
-                      <Label className="text-[12px] text-muted-foreground">Qty (kg)</Label>
+                      <Label className="text-[12px] text-muted-foreground">{t("sales.qty_kg")}</Label>
                       <Input type="number" min={0} step={0.1} className="h-9 bg-secondary border-border/50 text-[13px]" value={item.quantity_kg || ""} onChange={(e) => updateItem(idx, "quantity_kg", Number(e.target.value))} />
-                      {stk !== null && <p className={`text-[11px] ${stkColor(stk)}`}>Stok: {stk.toFixed(1)} kg</p>}
-                      {stk !== null && item.quantity_kg > stk && <p className="text-[11px] text-red-400 font-medium">Qty melebihi stok tersedia!</p>}
+                      {stk !== null && <p className={`text-[11px] ${stkColor(stk)}`}>{t("sales.stock_label")}: {stk.toFixed(1)} kg</p>}
+                      {stk !== null && item.quantity_kg > stk && <p className="text-[11px] text-red-400 font-medium">{t("sales.qty_exceeds")}</p>}
                     </div>
                     <div className="space-y-1">
-                      <Label className="text-[12px] text-muted-foreground">Harga/kg (Rp)</Label>
+                      <Label className="text-[12px] text-muted-foreground">{t("sales.price_per_kg")}</Label>
                       <Input type="number" min={0} className="h-9 bg-secondary border-border/50 text-[13px]" value={item.price_per_kg || ""} onChange={(e) => updateItem(idx, "price_per_kg", Number(e.target.value))} />
-                      {hp && <button type="button" className="text-[11px] text-sky-400 hover:underline cursor-pointer" onClick={() => applyHint(idx, hp)}>Harga terakhir: {fmtCurrency.format(hp)}</button>}
+                      {hp && <button type="button" className="text-[11px] text-sky-400 hover:underline cursor-pointer" onClick={() => applyHint(idx, hp)}>{t("sales.last_price")}{fmtCurrency.format(hp)}</button>}
                     </div>
                   </div>
-                  <div className="text-right text-[13px] text-muted-foreground">Subtotal: <span className="font-medium text-foreground">{fmtCurrency.format(item.quantity_kg * item.price_per_kg)}</span></div>
+                  <div className="text-right text-[13px] text-muted-foreground">{t("sales.subtotal")}: <span className="font-medium text-foreground">{fmtCurrency.format(item.quantity_kg * item.price_per_kg)}</span></div>
                 </div>
               );
             })}
-            <Button variant="outline" className="h-9 text-[13px] w-full" onClick={addItem}><Plus className="w-4 h-4 mr-1.5" />Tambah Item</Button>
+            <Button variant="outline" className="h-9 text-[13px] w-full" onClick={addItem}><Plus className="w-4 h-4 mr-1.5" />{t("sales.add_item")}</Button>
           </div>
           <Separator />
           {/* Discount & Tax */}
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
-              <Label className="text-[13px] text-muted-foreground">Diskon Order (Rp)</Label>
+              <Label className="text-[13px] text-muted-foreground">{t("sales.discount_order")}</Label>
               <Input type="number" min={0} className="h-9 bg-secondary border-border/50 text-[13px]" value={formDisc || ""} onChange={(e) => setFormDisc(Number(e.target.value))} />
             </div>
             <div className="space-y-1.5">
-              <Label className="text-[13px] text-muted-foreground">PPN (%)</Label>
+              <Label className="text-[13px] text-muted-foreground">{t("sales.tax_pct")}</Label>
               <Input type="number" min={0} max={100} className="h-9 bg-secondary border-border/50 text-[13px]" value={formTax || ""} onChange={(e) => setFormTax(Number(e.target.value))} />
             </div>
           </div>
           {/* Payment method */}
           <div className="space-y-1.5">
-            <Label className="text-[13px] text-muted-foreground">Metode Pembayaran</Label>
+            <Label className="text-[13px] text-muted-foreground">{t("sales.payment_method")}</Label>
             <Select value={formPay} onValueChange={(v) => v !== null && setFormPay(v)}>
-              <SelectTrigger className="h-11 bg-secondary border-border/50"><SelectValue>{PAY_METHODS.find((m) => m.value === formPay)?.label ?? formPay}</SelectValue></SelectTrigger>
-              <SelectContent>{PAY_METHODS.map((m) => <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>)}</SelectContent>
+              <SelectTrigger className="h-11 bg-secondary border-border/50"><SelectValue>{PAY_METHOD_LABEL[formPay] ?? formPay}</SelectValue></SelectTrigger>
+              <SelectContent>{PAY_METHOD_VALUES.map((m) => <SelectItem key={m} value={m}>{PAY_METHOD_LABEL[m]}</SelectItem>)}</SelectContent>
             </Select>
           </div>
           {/* Due date */}
           <div className="space-y-1.5">
-            <Label className="text-[13px] text-muted-foreground">Jatuh Tempo (opsional)</Label>
+            <Label className="text-[13px] text-muted-foreground">{t("sales.due_date_optional")}</Label>
             <Input type="date" className="h-9 bg-secondary border-border/50 text-[13px]" value={formDue} onChange={(e) => setFormDue(e.target.value)} />
           </div>
           {/* Notes */}
           <div className="space-y-1.5">
-            <Label className="text-[13px] text-muted-foreground">Catatan</Label>
-            <Textarea className="min-h-[80px] bg-secondary border-border/50" placeholder="Catatan tambahan..." value={formNotes} onChange={(e) => setFormNotes(e.target.value)} />
+            <Label className="text-[13px] text-muted-foreground">{t("sales.notes")}</Label>
+            <Textarea className="min-h-[80px] bg-secondary border-border/50" placeholder={t("sales.notes_extra_ph")} value={formNotes} onChange={(e) => setFormNotes(e.target.value)} />
           </div>
           {/* Totals */}
           <div className="rounded-lg border border-border/40 bg-secondary/30 p-4 space-y-1.5 text-[13px]">
-            <div className="flex justify-between"><span className="text-muted-foreground">Subtotal</span><span className="text-foreground">{fmtCurrency.format(sub)}</span></div>
-            {formDisc > 0 && <div className="flex justify-between"><span className="text-muted-foreground">Diskon</span><span className="text-red-400">-{fmtCurrency.format(formDisc)}</span></div>}
-            {formTax > 0 && <div className="flex justify-between"><span className="text-muted-foreground">PPN ({formTax}%)</span><span className="text-foreground">{fmtCurrency.format(taxAmt)}</span></div>}
+            <div className="flex justify-between"><span className="text-muted-foreground">{t("sales.subtotal")}</span><span className="text-foreground">{fmtCurrency.format(sub)}</span></div>
+            {formDisc > 0 && <div className="flex justify-between"><span className="text-muted-foreground">{t("sales.discount")}</span><span className="text-red-400">-{fmtCurrency.format(formDisc)}</span></div>}
+            {formTax > 0 && <div className="flex justify-between"><span className="text-muted-foreground">{t("sales.tax_label")} ({formTax}%)</span><span className="text-foreground">{fmtCurrency.format(taxAmt)}</span></div>}
             <Separator />
-            <div className="flex justify-between pt-1"><span className="font-medium text-foreground">Grand Total</span><span className="text-lg font-bold text-foreground">{fmtCurrency.format(grandT)}</span></div>
+            <div className="flex justify-between pt-1"><span className="font-medium text-foreground">{t("sales.grand_total")}</span><span className="text-lg font-bold text-foreground">{fmtCurrency.format(grandT)}</span></div>
           </div>
           <div className="flex justify-end gap-3 pt-2">
-            <Button variant="outline" className="h-9 text-[13px]" onClick={() => setCreateOpen(false)}>Batal</Button>
-            <Button className="h-9 bg-[oklch(0.65_0.18_260)] text-white text-[13px] hover:bg-[oklch(0.60_0.20_260)]" onClick={handleCreate} disabled={saving}>{saving ? "Menyimpan..." : "Simpan Order"}</Button>
+            <Button variant="outline" className="h-9 text-[13px]" onClick={() => setCreateOpen(false)}>{t("common.cancel")}</Button>
+            <Button className="h-9 bg-primary text-white text-[13px] hover:bg-primary/90" onClick={handleCreate} disabled={saving}>{saving ? t("common.saving") : t("sales.save_order")}</Button>
           </div>
         </div>
       </DialogContent>
@@ -434,33 +454,33 @@ export default function SalesOrderPage() {
     {/* ==== Detail Dialog ==== */}
     <Dialog open={detailOpen} onOpenChange={setDetailOpen}>
       <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto bg-card border-border/40">
-        <DialogHeader><DialogTitle className="text-foreground">Detail Order {detailOrder ? orderLabel(detailOrder) : ""}</DialogTitle></DialogHeader>
+        <DialogHeader><DialogTitle className="text-foreground">{t("sales.detail_order")} {detailOrder ? orderLabel(detailOrder) : ""}</DialogTitle></DialogHeader>
         {detailOrder && (
           <div className="space-y-4 mt-2">
             <div className="grid grid-cols-2 gap-3 text-[13px]">
-              <div><p className="text-muted-foreground">Tanggal</p><p className="font-medium text-foreground">{fmtDate(detailOrder.created_at)}</p></div>
-              <div><p className="text-muted-foreground">Pelanggan</p><p className="font-medium text-foreground">{detailOrder.customers?.name ?? "-"}</p></div>
-              <div><p className="text-muted-foreground">Metode Bayar</p><p className="font-medium text-foreground">{detailOrder.payment_method}</p></div>
-              <div><p className="text-muted-foreground">Status Bayar</p><Badge variant="outline" className={`text-[11px] border-0 ${PAYMENT_STATUS[detailOrder.payment_status]?.color ?? ""}`}>{PAYMENT_STATUS[detailOrder.payment_status]?.label ?? detailOrder.payment_status}</Badge></div>
-              {detailOrder.due_date && <div><p className="text-muted-foreground">Jatuh Tempo</p><p className={`font-medium ${isOverdue(detailOrder) ? "text-red-400" : "text-foreground"}`}>{fmtDate(detailOrder.due_date)}{isOverdue(detailOrder) && " (Lewat!)"}</p></div>}
+              <div><p className="text-muted-foreground">{t("sales.date")}</p><p className="font-medium text-foreground">{fmtDate(detailOrder.created_at)}</p></div>
+              <div><p className="text-muted-foreground">{t("sales.customer")}</p><p className="font-medium text-foreground">{detailOrder.customers?.name ?? "-"}</p></div>
+              <div><p className="text-muted-foreground">{t("sales.method")}</p><p className="font-medium text-foreground">{PAY_METHOD_LABEL[detailOrder.payment_method] ?? detailOrder.payment_method}</p></div>
+              <div><p className="text-muted-foreground">{t("sales.payment_status")}</p><Badge variant="outline" className={`text-[11px] border-0 ${PAYMENT_STATUS_COLOR[detailOrder.payment_status] ?? ""}`}>{PAYMENT_STATUS_LABEL[detailOrder.payment_status] ?? detailOrder.payment_status}</Badge></div>
+              {detailOrder.due_date && <div><p className="text-muted-foreground">{t("sales.due_date")}</p><p className={`font-medium ${isOverdue(detailOrder) ? "text-red-400" : "text-foreground"}`}>{fmtDate(detailOrder.due_date)}{isOverdue(detailOrder) && t("sales.overdue_excl")}</p></div>}
             </div>
-            {detailOrder.notes && <div className="text-[13px]"><p className="text-muted-foreground">Catatan</p><p className="text-foreground">{detailOrder.notes}</p></div>}
+            {detailOrder.notes && <div className="text-[13px]"><p className="text-muted-foreground">{t("sales.notes")}</p><p className="text-foreground">{detailOrder.notes}</p></div>}
             <Separator />
             {/* Items table */}
             <div>
-              <p className="text-[13px] font-medium text-foreground mb-2">Item</p>
+              <p className="text-[13px] font-medium text-foreground mb-2">{t("sales.item_label")}</p>
               <div className="rounded-lg border border-border/40 bg-card overflow-hidden">
                 <Table>
                   <TableHeader><TableRow>
-                    <TableHead className="text-[12px] text-muted-foreground">Komoditas</TableHead>
-                    <TableHead className="text-[12px] text-muted-foreground">Grade</TableHead>
-                    <TableHead className="text-[12px] text-muted-foreground text-right">Qty</TableHead>
-                    <TableHead className="text-[12px] text-muted-foreground text-right">Harga/kg</TableHead>
-                    <TableHead className="text-[12px] text-muted-foreground text-right">Subtotal</TableHead>
+                    <TableHead className="text-[12px] text-muted-foreground">{t("sales.commodity")}</TableHead>
+                    <TableHead className="text-[12px] text-muted-foreground">{t("sales.grade")}</TableHead>
+                    <TableHead className="text-[12px] text-muted-foreground text-right">{t("common.quantity")}</TableHead>
+                    <TableHead className="text-[12px] text-muted-foreground text-right">{t("sales.col_price_kg")}</TableHead>
+                    <TableHead className="text-[12px] text-muted-foreground text-right">{t("sales.subtotal")}</TableHead>
                   </TableRow></TableHeader>
                   <TableBody>{detailOrder.sales_order_items.map((it, i) => (
                     <TableRow key={i}>
-                      <TableCell className="text-[13px]">{it.crop_catalog?.name_id ?? "-"}</TableCell>
+                      <TableCell className="text-[13px]">{translateCommodity(it.crop_catalog?.name_id ?? "-", lang)}</TableCell>
                       <TableCell className="text-[13px]">{it.grade}</TableCell>
                       <TableCell className="text-[13px] text-right">{it.quantity_kg}</TableCell>
                       <TableCell className="text-[13px] text-right">{fmtCurrency.format(it.price_per_kg)}</TableCell>
@@ -470,66 +490,66 @@ export default function SalesOrderPage() {
                 </Table>
               </div>
               <div className="mt-3 space-y-1 text-[13px]">
-                <div className="flex justify-between"><span className="text-muted-foreground">Subtotal</span><span>{fmtCurrency.format(detailOrder.total_amount)}</span></div>
-                {(detailOrder.discount_amount ?? 0) > 0 && <div className="flex justify-between"><span className="text-muted-foreground">Diskon</span><span className="text-red-400">-{fmtCurrency.format(detailOrder.discount_amount)}</span></div>}
-                {(detailOrder.tax_percent ?? 0) > 0 && <div className="flex justify-between"><span className="text-muted-foreground">PPN ({detailOrder.tax_percent}%)</span><span>{fmtCurrency.format(detailOrder.tax_amount)}</span></div>}
+                <div className="flex justify-between"><span className="text-muted-foreground">{t("sales.subtotal")}</span><span>{fmtCurrency.format(detailOrder.total_amount)}</span></div>
+                {(detailOrder.discount_amount ?? 0) > 0 && <div className="flex justify-between"><span className="text-muted-foreground">{t("sales.discount")}</span><span className="text-red-400">-{fmtCurrency.format(detailOrder.discount_amount)}</span></div>}
+                {(detailOrder.tax_percent ?? 0) > 0 && <div className="flex justify-between"><span className="text-muted-foreground">{t("sales.tax_label")} ({detailOrder.tax_percent}%)</span><span>{fmtCurrency.format(detailOrder.tax_amount)}</span></div>}
                 <Separator />
-                <div className="flex justify-between pt-1"><span className="font-medium text-foreground">Grand Total</span><span className="text-lg font-bold text-foreground">{fmtCurrency.format(gt(detailOrder))}</span></div>
+                <div className="flex justify-between pt-1"><span className="font-medium text-foreground">{t("sales.grand_total")}</span><span className="text-lg font-bold text-foreground">{fmtCurrency.format(gt(detailOrder))}</span></div>
               </div>
             </div>
             <Separator />
             {/* Status update */}
             <div className="space-y-2">
-              <Label className="text-[13px] text-muted-foreground">Update Status</Label>
+              <Label className="text-[13px] text-muted-foreground">{t("sales.update_status")}</Label>
               <div className="flex items-center gap-3">
                 <Select value={detailStatus} onValueChange={(v) => v !== null && setDetailStatus(v)}>
-                  <SelectTrigger className="h-9 bg-secondary border-border/50 text-[13px] flex-1"><SelectValue>{ORDER_STATUS[detailStatus]?.label ?? detailStatus}</SelectValue></SelectTrigger>
-                  <SelectContent>{Object.entries(ORDER_STATUS).map(([k, v]) => <SelectItem key={k} value={k}>{v.label}</SelectItem>)}</SelectContent>
+                  <SelectTrigger className="h-9 bg-secondary border-border/50 text-[13px] flex-1"><SelectValue>{ORDER_STATUS_LABEL[detailStatus] ?? detailStatus}</SelectValue></SelectTrigger>
+                  <SelectContent>{Object.keys(ORDER_STATUS_COLOR).map((k) => <SelectItem key={k} value={k}>{ORDER_STATUS_LABEL[k]}</SelectItem>)}</SelectContent>
                 </Select>
-                <Button className="h-9 bg-[oklch(0.65_0.18_260)] text-white text-[13px] hover:bg-[oklch(0.60_0.20_260)]" onClick={handleStatusUpdate} disabled={updatingStatus || detailStatus === detailOrder.status}>{updatingStatus ? "Menyimpan..." : "Simpan"}</Button>
+                <Button className="h-9 bg-primary text-white text-[13px] hover:bg-primary/90" onClick={handleStatusUpdate} disabled={updatingStatus || detailStatus === detailOrder.status}>{updatingStatus ? t("common.saving") : t("common.save")}</Button>
               </div>
             </div>
             <Separator />
             {/* Payment logs */}
             <div className="space-y-3">
               <div className="flex items-center justify-between">
-                <Label className="text-[13px] text-muted-foreground font-medium">Pembayaran</Label>
-                <Button variant="outline" className="h-8 text-[12px]" onClick={() => setPayOpen((p) => !p)}><Plus className="w-3.5 h-3.5 mr-1" />Catat Pembayaran</Button>
+                <Label className="text-[13px] text-muted-foreground font-medium">{t("sales.payments")}</Label>
+                <Button variant="outline" className="h-8 text-[12px]" onClick={() => setPayOpen((p) => !p)}><Plus className="w-3.5 h-3.5 mr-1" />{t("sales.record_payment")}</Button>
               </div>
               {payLogs.length > 0 ? payLogs.map((p) => (
                 <div key={p.id} className="rounded-lg border border-border/40 bg-secondary/30 p-2.5 text-[12px]">
                   <p className="text-foreground font-medium">{fmtCurrency.format(p.amount)}</p>
-                  <p className="text-muted-foreground">{fmtDate(p.payment_date)} - {p.method ?? "-"}</p>
+                  <p className="text-muted-foreground">{fmtDate(p.payment_date)} - {p.method ? (PAY_METHOD_LABEL[p.method] ?? p.method) : "-"}</p>
                   {p.reference && <p className="text-muted-foreground">Ref: {p.reference}</p>}
                   {p.notes && <p className="text-muted-foreground">{p.notes}</p>}
                 </div>
-              )) : <p className="text-[12px] text-muted-foreground">Belum ada pembayaran.</p>}
+              )) : <p className="text-[12px] text-muted-foreground">{t("sales.no_payments")}</p>}
               {payOpen && (
                 <div className="rounded-lg border border-border/40 bg-secondary/30 p-3 space-y-3">
                   <div className="grid grid-cols-2 gap-3">
                     <div className="space-y-1">
-                      <Label className="text-[12px] text-muted-foreground">Jumlah (Rp)</Label>
+                      <Label className="text-[12px] text-muted-foreground">{t("sales.amount_idr")}</Label>
                       <Input type="number" min={0} className="h-9 bg-secondary border-border/50 text-[13px]" value={payAmt || ""} onChange={(e) => setPayAmt(Number(e.target.value))} />
                     </div>
                     <div className="space-y-1">
-                      <Label className="text-[12px] text-muted-foreground">Metode</Label>
+                      <Label className="text-[12px] text-muted-foreground">{t("sales.method_label")}</Label>
                       <Select value={payMeth} onValueChange={(v) => v !== null && setPayMeth(v)}>
-                        <SelectTrigger className="h-9 bg-secondary border-border/50 text-[13px]"><SelectValue>{payMeth}</SelectValue></SelectTrigger>
-                        <SelectContent><SelectItem value="tunai">Tunai</SelectItem><SelectItem value="transfer">Transfer</SelectItem></SelectContent>
+                        <SelectTrigger className="h-9 bg-secondary border-border/50 text-[13px]"><SelectValue>{PAY_METHOD_LABEL[payMeth] ?? payMeth}</SelectValue></SelectTrigger>
+                        <SelectContent><SelectItem value="tunai">{t("sales.method_tunai")}</SelectItem><SelectItem value="transfer">{t("sales.method_transfer")}</SelectItem></SelectContent>
                       </Select>
                     </div>
                   </div>
-                  <div className="space-y-1"><Label className="text-[12px] text-muted-foreground">Referensi</Label><Input className="h-9 bg-secondary border-border/50 text-[13px]" placeholder="No. transfer / kuitansi" value={payRef} onChange={(e) => setPayRef(e.target.value)} /></div>
-                  <div className="space-y-1"><Label className="text-[12px] text-muted-foreground">Catatan</Label><Input className="h-9 bg-secondary border-border/50 text-[13px]" placeholder="Catatan pembayaran" value={payNote} onChange={(e) => setPayNote(e.target.value)} /></div>
+                  <div className="space-y-1"><Label className="text-[12px] text-muted-foreground">{t("sales.reference")}</Label><Input className="h-9 bg-secondary border-border/50 text-[13px]" placeholder={t("sales.reference_ph")} value={payRef} onChange={(e) => setPayRef(e.target.value)} /></div>
+                  <div className="space-y-1"><Label className="text-[12px] text-muted-foreground">{t("sales.notes")}</Label><Input className="h-9 bg-secondary border-border/50 text-[13px]" placeholder={t("sales.payment_notes_ph")} value={payNote} onChange={(e) => setPayNote(e.target.value)} /></div>
                   <div className="flex justify-end gap-2">
-                    <Button variant="ghost" className="h-8 text-[12px]" onClick={() => setPayOpen(false)}>Batal</Button>
-                    <Button className="h-8 bg-[oklch(0.65_0.18_260)] text-white text-[12px] hover:bg-[oklch(0.60_0.20_260)]" onClick={handleSavePay} disabled={savingPay}>{savingPay ? "Menyimpan..." : "Simpan"}</Button>
+                    <Button variant="ghost" className="h-8 text-[12px]" onClick={() => setPayOpen(false)}>{t("common.cancel")}</Button>
+                    <Button className="h-8 bg-primary text-white text-[12px] hover:bg-primary/90" onClick={handleSavePay} disabled={savingPay}>{savingPay ? t("common.saving") : t("common.save")}</Button>
                   </div>
                 </div>
               )}
             </div>
             <Separator />
-            <Button variant="outline" className="h-9 text-[13px] w-full" onClick={() => window.print()}><Printer className="w-4 h-4 mr-1.5" />Cetak Invoice</Button>
+            <Button variant="outline" className="h-9 text-[13px] w-full" onClick={() => window.print()}><Printer className="w-4 h-4 mr-1.5" />{t("sales.print_invoice")}</Button>
           </div>
         )}
       </DialogContent>
@@ -540,35 +560,35 @@ export default function SalesOrderPage() {
       <div id="print-invoice">
         <div style={{ textAlign: "center", marginBottom: 24 }}>
           <h1 style={{ fontSize: 20, fontWeight: 700, margin: 0 }}>PLANT FACTORY &mdash; SARC UGM</h1>
-          <h2 style={{ fontSize: 16, fontWeight: 600, margin: "4px 0 0" }}>INVOICE</h2>
+          <h2 style={{ fontSize: 16, fontWeight: 600, margin: "4px 0 0" }}>{t("sales.invoice_caps")}</h2>
         </div>
         <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16, fontSize: 13 }}>
           <div>
-            <p style={{ margin: "2px 0" }}><strong>No. Invoice:</strong> {orderLabel(detailOrder)}</p>
-            <p style={{ margin: "2px 0" }}><strong>Tanggal:</strong> {fmtDate(detailOrder.created_at)}</p>
-            {detailOrder.due_date && <p style={{ margin: "2px 0" }}><strong>Jatuh Tempo:</strong> {fmtDate(detailOrder.due_date)}</p>}
+            <p style={{ margin: "2px 0" }}><strong>{t("sales.invoice_no")}</strong> {orderLabel(detailOrder)}</p>
+            <p style={{ margin: "2px 0" }}><strong>{t("sales.date_label")}</strong> {fmtDate(detailOrder.created_at)}</p>
+            {detailOrder.due_date && <p style={{ margin: "2px 0" }}><strong>{t("sales.due_date_label")}</strong> {fmtDate(detailOrder.due_date)}</p>}
           </div>
           <div style={{ textAlign: "right" }}>
-            <p style={{ margin: "2px 0" }}><strong>Pelanggan:</strong> {detailOrder.customers?.name ?? "-"}</p>
-            {detailOrder.customers?.phone && <p style={{ margin: "2px 0" }}><strong>Telp:</strong> {detailOrder.customers.phone}</p>}
-            {detailOrder.customers?.address && <p style={{ margin: "2px 0" }}><strong>Alamat:</strong> {detailOrder.customers.address}</p>}
+            <p style={{ margin: "2px 0" }}><strong>{t("sales.customer_label")}</strong> {detailOrder.customers?.name ?? "-"}</p>
+            {detailOrder.customers?.phone && <p style={{ margin: "2px 0" }}><strong>{t("sales.phone_label")}</strong> {detailOrder.customers.phone}</p>}
+            {detailOrder.customers?.address && <p style={{ margin: "2px 0" }}><strong>{t("sales.address_label")}</strong> {detailOrder.customers.address}</p>}
           </div>
         </div>
         <table>
-          <thead><tr><th>No</th><th>Komoditas</th><th>Grade</th><th className="tr">Qty (kg)</th><th className="tr">Harga/kg</th><th className="tr">Subtotal</th></tr></thead>
+          <thead><tr><th>{t("sales.col_no")}</th><th>{t("sales.commodity")}</th><th>{t("sales.grade")}</th><th className="tr">{t("sales.col_qty_kg")}</th><th className="tr">{t("sales.col_price_kg")}</th><th className="tr">{t("sales.col_subtotal")}</th></tr></thead>
           <tbody>{detailOrder.sales_order_items.map((it, i) => (
-            <tr key={i}><td>{i + 1}</td><td>{it.crop_catalog?.name_id ?? "-"}</td><td>{it.grade}</td><td className="tr">{it.quantity_kg}</td><td className="tr">{fmtCurrency.format(it.price_per_kg)}</td><td className="tr">{fmtCurrency.format(it.subtotal)}</td></tr>
+            <tr key={i}><td>{i + 1}</td><td>{translateCommodity(it.crop_catalog?.name_id ?? "-", lang)}</td><td>{it.grade}</td><td className="tr">{it.quantity_kg}</td><td className="tr">{fmtCurrency.format(it.price_per_kg)}</td><td className="tr">{fmtCurrency.format(it.subtotal)}</td></tr>
           ))}</tbody>
         </table>
         <div style={{ marginTop: 16, textAlign: "right", fontSize: 13 }}>
-          <p style={{ margin: "4px 0" }}>Subtotal: {fmtCurrency.format(detailOrder.total_amount)}</p>
-          {(detailOrder.discount_amount ?? 0) > 0 && <p style={{ margin: "4px 0" }}>Diskon: -{fmtCurrency.format(detailOrder.discount_amount)}</p>}
-          {(detailOrder.tax_percent ?? 0) > 0 && <p style={{ margin: "4px 0" }}>PPN ({detailOrder.tax_percent}%): {fmtCurrency.format(detailOrder.tax_amount)}</p>}
-          <p style={{ margin: "8px 0 0", fontSize: 16, fontWeight: 700 }}>Grand Total: {fmtCurrency.format(gt(detailOrder))}</p>
+          <p style={{ margin: "4px 0" }}>{t("sales.subtotal")}: {fmtCurrency.format(detailOrder.total_amount)}</p>
+          {(detailOrder.discount_amount ?? 0) > 0 && <p style={{ margin: "4px 0" }}>{t("sales.discount")}: -{fmtCurrency.format(detailOrder.discount_amount)}</p>}
+          {(detailOrder.tax_percent ?? 0) > 0 && <p style={{ margin: "4px 0" }}>{t("sales.tax_label")} ({detailOrder.tax_percent}%): {fmtCurrency.format(detailOrder.tax_amount)}</p>}
+          <p style={{ margin: "8px 0 0", fontSize: 16, fontWeight: 700 }}>{t("sales.grand_total")}: {fmtCurrency.format(gt(detailOrder))}</p>
         </div>
         <div style={{ marginTop: 24, fontSize: 12, borderTop: "1px solid #ccc", paddingTop: 12 }}>
-          <p style={{ margin: "2px 0" }}><strong>Metode Pembayaran:</strong> {detailOrder.payment_method ?? "-"}</p>
-          <p style={{ margin: "2px 0" }}><strong>Status:</strong> {PAYMENT_STATUS[detailOrder.payment_status]?.label ?? detailOrder.payment_status}</p>
+          <p style={{ margin: "2px 0" }}><strong>{t("sales.payment_method_label")}</strong> {detailOrder.payment_method ? (PAY_METHOD_LABEL[detailOrder.payment_method] ?? detailOrder.payment_method) : "-"}</p>
+          <p style={{ margin: "2px 0" }}><strong>{t("sales.status_label")}</strong> {PAYMENT_STATUS_LABEL[detailOrder.payment_status] ?? detailOrder.payment_status}</p>
         </div>
       </div>
     )}

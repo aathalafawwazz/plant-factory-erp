@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import type { CropCatalog } from "@/lib/types/database";
+import { useLang } from "@/lib/i18n";
 
 interface CropFormProps {
   crop?: CropCatalog;
@@ -18,6 +19,7 @@ interface CropFormProps {
 export function CropForm({ crop }: CropFormProps) {
   const router = useRouter();
   const supabase = createClient();
+  const { t } = useLang();
   const isEdit = !!crop;
   const [loading, setLoading] = useState(false);
 
@@ -41,7 +43,7 @@ export function CropForm({ crop }: CropFormProps) {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!nameId.trim()) {
-      toast.error("Nama komoditas wajib diisi");
+      toast.error(t("crop_form.name_required"));
       return;
     }
     setLoading(true);
@@ -78,9 +80,9 @@ export function CropForm({ crop }: CropFormProps) {
     }
 
     if (error) {
-      toast.error("Gagal menyimpan: " + error.message);
+      toast.error(t("crop_form.save_failed") + error.message);
     } else {
-      toast.success(isEdit ? "Komoditas berhasil diperbarui" : "Komoditas berhasil ditambahkan");
+      toast.success(isEdit ? t("crop_form.update_success") : t("crop_form.add_success"));
       router.push("/komoditas");
       router.refresh();
     }
@@ -89,14 +91,14 @@ export function CropForm({ crop }: CropFormProps) {
 
   async function handleDelete() {
     if (!crop) return;
-    if (!confirm("Hapus komoditas ini? Data yang terkait dengan siklus tanam tidak akan terhapus.")) return;
+    if (!confirm(t("crop_form.delete_confirm"))) return;
 
     setLoading(true);
     const { error } = await supabase.from("crop_catalog").delete().eq("id", crop.id);
     if (error) {
-      toast.error("Gagal menghapus: " + error.message);
+      toast.error(t("crop_form.delete_failed") + error.message);
     } else {
-      toast.success("Komoditas berhasil dihapus");
+      toast.success(t("crop_form.delete_success"));
       router.push("/komoditas");
       router.refresh();
     }
@@ -108,15 +110,15 @@ export function CropForm({ crop }: CropFormProps) {
       <Card className="rounded-xl border border-border/40 bg-card">
         <CardHeader>
           <CardTitle className="text-base">
-            {isEdit ? "Edit Komoditas" : "Tambah Komoditas Baru"}
+            {isEdit ? t("crop_form.title_edit") : t("crop_form.title_add")}
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="space-y-2">
-            <Label className="text-[13px] text-muted-foreground">Nama Komoditas (Indonesia)</Label>
+            <Label className="text-[13px] text-muted-foreground">{t("crop_form.label_name_id")}</Label>
             <Input
               className="h-11 bg-secondary border-border/50"
-              placeholder="Contoh: Selada Keriting"
+              placeholder={t("crop_form.placeholder_name_id")}
               value={nameId}
               onChange={(e) => setNameId(e.target.value)}
               required
@@ -124,17 +126,17 @@ export function CropForm({ crop }: CropFormProps) {
           </div>
 
           <div className="space-y-2">
-            <Label className="text-[13px] text-muted-foreground">Nama Latin (opsional)</Label>
+            <Label className="text-[13px] text-muted-foreground">{t("crop_form.label_name_latin")}</Label>
             <Input
               className="h-11 bg-secondary border-border/50"
-              placeholder="Contoh: Lactuca sativa"
+              placeholder={t("crop_form.placeholder_name_latin")}
               value={nameLatin}
               onChange={(e) => setNameLatin(e.target.value)}
             />
           </div>
 
           <div className="space-y-2">
-            <Label className="text-[13px] text-muted-foreground">Durasi Tumbuh (hari)</Label>
+            <Label className="text-[13px] text-muted-foreground">{t("crop_form.label_grow_days")}</Label>
             <Input
               type="number"
               className="h-11 bg-secondary border-border/50"
@@ -147,7 +149,7 @@ export function CropForm({ crop }: CropFormProps) {
 
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-2">
-              <Label className="text-[13px] text-muted-foreground">EC Minimum (mS/cm)</Label>
+              <Label className="text-[13px] text-muted-foreground">{t("crop_form.label_ec_min")}</Label>
               <Input
                 type="number"
                 className="h-11 bg-secondary border-border/50"
@@ -158,7 +160,7 @@ export function CropForm({ crop }: CropFormProps) {
               />
             </div>
             <div className="space-y-2">
-              <Label className="text-[13px] text-muted-foreground">EC Maksimum (mS/cm)</Label>
+              <Label className="text-[13px] text-muted-foreground">{t("crop_form.label_ec_max")}</Label>
               <Input
                 type="number"
                 className="h-11 bg-secondary border-border/50"
@@ -169,7 +171,7 @@ export function CropForm({ crop }: CropFormProps) {
               />
             </div>
             <div className="space-y-2">
-              <Label className="text-[13px] text-muted-foreground">pH Minimum</Label>
+              <Label className="text-[13px] text-muted-foreground">{t("crop_form.label_ph_min")}</Label>
               <Input
                 type="number"
                 className="h-11 bg-secondary border-border/50"
@@ -180,7 +182,7 @@ export function CropForm({ crop }: CropFormProps) {
               />
             </div>
             <div className="space-y-2">
-              <Label className="text-[13px] text-muted-foreground">pH Maksimum</Label>
+              <Label className="text-[13px] text-muted-foreground">{t("crop_form.label_ph_max")}</Label>
               <Input
                 type="number"
                 className="h-11 bg-secondary border-border/50"
@@ -194,7 +196,7 @@ export function CropForm({ crop }: CropFormProps) {
 
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-2">
-              <Label className="text-[13px] text-muted-foreground">CO2 Minimum (ppm)</Label>
+              <Label className="text-[13px] text-muted-foreground">{t("crop_form.label_co2_min")}</Label>
               <Input
                 type="number"
                 className="h-11 bg-secondary border-border/50"
@@ -205,7 +207,7 @@ export function CropForm({ crop }: CropFormProps) {
               />
             </div>
             <div className="space-y-2">
-              <Label className="text-[13px] text-muted-foreground">CO2 Maksimum (ppm)</Label>
+              <Label className="text-[13px] text-muted-foreground">{t("crop_form.label_co2_max")}</Label>
               <Input
                 type="number"
                 className="h-11 bg-secondary border-border/50"
@@ -216,7 +218,7 @@ export function CropForm({ crop }: CropFormProps) {
               />
             </div>
             <div className="space-y-2">
-              <Label className="text-[13px] text-muted-foreground">VPD Minimum (kPa)</Label>
+              <Label className="text-[13px] text-muted-foreground">{t("crop_form.label_vpd_min")}</Label>
               <Input
                 type="number"
                 className="h-11 bg-secondary border-border/50"
@@ -227,7 +229,7 @@ export function CropForm({ crop }: CropFormProps) {
               />
             </div>
             <div className="space-y-2">
-              <Label className="text-[13px] text-muted-foreground">VPD Maksimum (kPa)</Label>
+              <Label className="text-[13px] text-muted-foreground">{t("crop_form.label_vpd_max")}</Label>
               <Input
                 type="number"
                 className="h-11 bg-secondary border-border/50"
@@ -238,7 +240,7 @@ export function CropForm({ crop }: CropFormProps) {
               />
             </div>
             <div className="space-y-2">
-              <Label className="text-[13px] text-muted-foreground">PPFD Minimum (umol/m2/s)</Label>
+              <Label className="text-[13px] text-muted-foreground">{t("crop_form.label_ppfd_min")}</Label>
               <Input
                 type="number"
                 className="h-11 bg-secondary border-border/50"
@@ -249,7 +251,7 @@ export function CropForm({ crop }: CropFormProps) {
               />
             </div>
             <div className="space-y-2">
-              <Label className="text-[13px] text-muted-foreground">PPFD Maksimum (umol/m2/s)</Label>
+              <Label className="text-[13px] text-muted-foreground">{t("crop_form.label_ppfd_max")}</Label>
               <Input
                 type="number"
                 className="h-11 bg-secondary border-border/50"
@@ -260,7 +262,7 @@ export function CropForm({ crop }: CropFormProps) {
               />
             </div>
             <div className="space-y-2">
-              <Label className="text-[13px] text-muted-foreground">Suhu Larutan Min (°C)</Label>
+              <Label className="text-[13px] text-muted-foreground">{t("crop_form.label_sol_temp_min")}</Label>
               <Input
                 type="number"
                 className="h-11 bg-secondary border-border/50"
@@ -271,7 +273,7 @@ export function CropForm({ crop }: CropFormProps) {
               />
             </div>
             <div className="space-y-2">
-              <Label className="text-[13px] text-muted-foreground">Suhu Larutan Max (°C)</Label>
+              <Label className="text-[13px] text-muted-foreground">{t("crop_form.label_sol_temp_max")}</Label>
               <Input
                 type="number"
                 className="h-11 bg-secondary border-border/50"
@@ -284,18 +286,18 @@ export function CropForm({ crop }: CropFormProps) {
           </div>
 
           <div className="space-y-2">
-            <Label className="text-[13px] text-muted-foreground">Keterangan Kepadatan Tanam</Label>
+            <Label className="text-[13px] text-muted-foreground">{t("crop_form.label_density")}</Label>
             <Textarea
               className="bg-secondary border-border/50"
-              placeholder="Contoh: 1 tanaman per lubang, jarak ideal 15cm"
+              placeholder={t("crop_form.placeholder_density")}
               value={densityNotes}
               onChange={(e) => setDensityNotes(e.target.value)}
             />
           </div>
 
           <div className="flex gap-2">
-            <Button type="submit" className="flex-1 h-11 bg-[oklch(0.65_0.18_260)] hover:bg-[oklch(0.60_0.20_260)] text-white" disabled={loading}>
-              {loading ? "Menyimpan..." : isEdit ? "Simpan Perubahan" : "Tambah Komoditas"}
+            <Button type="submit" className="flex-1 h-11 bg-primary hover:bg-primary/90 text-white" disabled={loading}>
+              {loading ? t("crop_form.btn_saving") : isEdit ? t("crop_form.btn_save_changes") : t("crop_form.btn_add")}
             </Button>
             {isEdit && (
               <Button
@@ -305,7 +307,7 @@ export function CropForm({ crop }: CropFormProps) {
                 onClick={handleDelete}
                 disabled={loading}
               >
-                Hapus
+                {t("common.delete")}
               </Button>
             )}
           </div>

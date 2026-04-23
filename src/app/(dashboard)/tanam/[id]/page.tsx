@@ -182,7 +182,7 @@ export default function CycleDetailPage() {
                   onChange={(e) => setNotes(e.target.value)}
                 />
               </div>
-              <Button type="submit" className="w-full h-11 bg-[oklch(0.65_0.18_260)] hover:bg-[oklch(0.60_0.20_260)] text-white" disabled={saving}>
+              <Button type="submit" className="w-full h-11 bg-primary hover:bg-primary/90 text-white" disabled={saving}>
                 {saving ? "Menyimpan..." : "Catat Panen"}
               </Button>
             </form>

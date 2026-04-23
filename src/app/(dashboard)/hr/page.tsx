@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { useLang } from "@/lib/i18n";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -32,6 +33,7 @@ import { Separator } from "@/components/ui/separator";
 import { toast } from "sonner";
 import { Search, Users, Pencil } from "lucide-react";
 import type { Profile, EmployeeDetail } from "@/lib/types/database";
+import { translateJobTitle } from "@/lib/translate-helpers";
 
 type AttendanceRow = {
   id: number;
@@ -44,10 +46,10 @@ type AttendanceRow = {
 };
 
 const CONTRACT_TYPES = [
-  { value: "tetap", label: "Karyawan Tetap" },
-  { value: "kontrak", label: "Kontrak" },
-  { value: "magang", label: "Magang" },
-  { value: "paruh_waktu", label: "Paruh Waktu" },
+  { value: "tetap", labelKey: "hr.contract_tetap" },
+  { value: "kontrak", labelKey: "hr.contract_kontrak" },
+  { value: "magang", labelKey: "hr.contract_magang" },
+  { value: "paruh_waktu", labelKey: "hr.contract_paruh" },
 ];
 
 type SortField = "display_name" | "position" | "department";
@@ -55,6 +57,7 @@ type SortDir = "asc" | "desc";
 
 export default function HRDashboardPage() {
   const supabase = createClient();
+  const { t, lang } = useLang();
 
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [employeeDetails, setEmployeeDetails] = useState<EmployeeDetail[]>([]);
@@ -224,12 +227,12 @@ export default function HRDashboardPage() {
         if (empErr) throw empErr;
       }
 
-      toast.success("Data karyawan berhasil disimpan");
+      toast.success(t("hr.employee_saved"));
       setEditing(false);
       await loadData();
     } catch (err: unknown) {
       const message =
-        err instanceof Error ? err.message : "Gagal menyimpan data";
+        err instanceof Error ? err.message : t("common.save_failed");
       toast.error(message);
     } finally {
       setSaving(false);
@@ -247,7 +250,7 @@ export default function HRDashboardPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64 text-muted-foreground text-sm">
-        Memuat data...
+        {t("common.loading_data")}
       </div>
     );
   }
@@ -255,7 +258,7 @@ export default function HRDashboardPage() {
   return (
     <div>
       <h1 className="text-lg font-semibold text-foreground mb-4">
-        SDM - Dashboard
+        {t("hr.title")}
       </h1>
 
       {/* Summary Cards */}
@@ -263,13 +266,13 @@ export default function HRDashboardPage() {
         <div className="rounded-lg border border-border/40 bg-card p-4">
           <div className="flex items-center gap-2 text-muted-foreground text-[12px] mb-1">
             <Users className="size-4" />
-            Total Karyawan
+            {t("hr.total_employees")}
           </div>
           <div className="text-2xl font-semibold">{totalEmployees}</div>
         </div>
         <div className="rounded-lg border border-border/40 bg-card p-4">
           <div className="text-muted-foreground text-[12px] mb-1">
-            Hadir Hari Ini
+            {t("hr.present_today")}
           </div>
           <div className="text-2xl font-semibold">
             {presentToday}
@@ -280,18 +283,18 @@ export default function HRDashboardPage() {
         </div>
         <div className="rounded-lg border border-border/40 bg-card p-4">
           <div className="text-muted-foreground text-[12px] mb-1">
-            Rata-rata Jam Kerja
+            {t("hr.avg_work_hours")}
           </div>
           <div className="text-2xl font-semibold">
             {avgWorkHours}
             <span className="text-sm text-muted-foreground font-normal ml-1">
-              jam
+              {t("hr.hours_unit")}
             </span>
           </div>
         </div>
         <div className="rounded-lg border border-border/40 bg-card p-4">
           <div className="text-muted-foreground text-[12px] mb-1">
-            Total Gaji Bulan Ini
+            {t("hr.total_salary_month")}
           </div>
           <div className="text-2xl font-semibold text-[16px]">
             {formatCurrency(totalSalary)}
@@ -304,7 +307,7 @@ export default function HRDashboardPage() {
         <div className="relative flex-1 max-w-sm">
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
           <Input
-            placeholder="Cari nama, jabatan, departemen..."
+            placeholder={t("hr.search_employees")}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="h-9 pl-8 bg-secondary border-border/50 text-[12px]"
@@ -321,7 +324,7 @@ export default function HRDashboardPage() {
                 className="text-[12px] text-muted-foreground cursor-pointer select-none"
                 onClick={() => handleSort("display_name")}
               >
-                Nama{" "}
+                {t("hr.name")}{" "}
                 {sortField === "display_name"
                   ? sortDir === "asc"
                     ? "\u2191"
@@ -332,7 +335,7 @@ export default function HRDashboardPage() {
                 className="text-[12px] text-muted-foreground cursor-pointer select-none"
                 onClick={() => handleSort("position")}
               >
-                Jabatan{" "}
+                {t("hr.job_title")}{" "}
                 {sortField === "position"
                   ? sortDir === "asc"
                     ? "\u2191"
@@ -343,7 +346,7 @@ export default function HRDashboardPage() {
                 className="text-[12px] text-muted-foreground cursor-pointer select-none"
                 onClick={() => handleSort("department")}
               >
-                Departemen{" "}
+                {t("hr.department")}{" "}
                 {sortField === "department"
                   ? sortDir === "asc"
                     ? "\u2191"
@@ -351,10 +354,10 @@ export default function HRDashboardPage() {
                   : ""}
               </TableHead>
               <TableHead className="text-[12px] text-muted-foreground">
-                Status Hari Ini
+                {t("hr.status_today")}
               </TableHead>
               <TableHead className="text-[12px] text-muted-foreground">
-                Jam Kerja Hari Ini
+                {t("hr.work_hours_today")}
               </TableHead>
             </TableRow>
           </TableHeader>
@@ -365,7 +368,7 @@ export default function HRDashboardPage() {
                   colSpan={5}
                   className="text-center text-muted-foreground py-8"
                 >
-                  Tidak ada data karyawan.
+                  {t("hr.no_employees")}
                 </TableCell>
               </TableRow>
             ) : (
@@ -383,7 +386,7 @@ export default function HRDashboardPage() {
                       {p.display_name}
                     </TableCell>
                     <TableCell className="text-[13px] text-muted-foreground">
-                      {detail?.position ?? "-"}
+                      {detail?.position ? translateJobTitle(detail.position, lang) : "-"}
                     </TableCell>
                     <TableCell className="text-[13px] text-muted-foreground">
                       {detail?.department ?? "-"}
@@ -391,17 +394,17 @@ export default function HRDashboardPage() {
                     <TableCell>
                       {isPresent ? (
                         <Badge className="bg-emerald-500/20 text-emerald-400 border-0 text-[11px]">
-                          Hadir
+                          {t("hr.present")}
                         </Badge>
                       ) : (
                         <Badge className="bg-zinc-500/20 text-zinc-400 border-0 text-[11px]">
-                          Belum
+                          {t("hr.not_yet")}
                         </Badge>
                       )}
                     </TableCell>
                     <TableCell className="text-[13px]">
                       {att?.total_hours
-                        ? `${att.total_hours.toFixed(1)} jam`
+                        ? `${att.total_hours.toFixed(1)} ${t("hr.hours_unit")}`
                         : "-"}
                     </TableCell>
                   </TableRow>
@@ -436,7 +439,9 @@ export default function HRDashboardPage() {
                       <DialogTitle>{selectedProfile.display_name}</DialogTitle>
                     )}
                     <div className="text-[12px] text-muted-foreground mt-0.5">
-                      {getDetail(selectedProfile.id)?.position ?? "Belum diisi"}
+                      {getDetail(selectedProfile.id)?.position
+                        ? translateJobTitle(getDetail(selectedProfile.id)!.position!, lang)
+                        : t("hr.not_filled")}
                     </div>
                   </div>
                   {!editing && (
@@ -457,7 +462,7 @@ export default function HRDashboardPage() {
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <Label className="text-[11px] text-muted-foreground">
-                      NIK
+                      {t("hr.nik")}
                     </Label>
                     {editing ? (
                       <Input
@@ -473,7 +478,7 @@ export default function HRDashboardPage() {
                   </div>
                   <div>
                     <Label className="text-[11px] text-muted-foreground">
-                      Jabatan
+                      {t("hr.job_title")}
                     </Label>
                     {editing ? (
                       <Input
@@ -483,7 +488,9 @@ export default function HRDashboardPage() {
                       />
                     ) : (
                       <div className="text-[13px]">
-                        {getDetail(selectedProfile.id)?.position ?? "-"}
+                        {getDetail(selectedProfile.id)?.position
+                          ? translateJobTitle(getDetail(selectedProfile.id)!.position!, lang)
+                          : "-"}
                       </div>
                     )}
                   </div>
@@ -492,7 +499,7 @@ export default function HRDashboardPage() {
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <Label className="text-[11px] text-muted-foreground">
-                      Departemen
+                      {t("hr.department")}
                     </Label>
                     {editing ? (
                       <Input
@@ -508,7 +515,7 @@ export default function HRDashboardPage() {
                   </div>
                   <div>
                     <Label className="text-[11px] text-muted-foreground">
-                      Tipe Kontrak
+                      {t("hr.contract_type")}
                     </Label>
                     {editing ? (
                       <Select
@@ -519,26 +526,26 @@ export default function HRDashboardPage() {
                       >
                         <SelectTrigger className="h-9 bg-secondary border-border/50 text-[12px] w-full">
                           <SelectValue>
-                            {CONTRACT_TYPES.find(
+                            {t(CONTRACT_TYPES.find(
                               (c) => c.value === editContractType
-                            )?.label ?? "Pilih tipe"}
+                            )?.labelKey ?? "") || t("hr.select_contract")}
                           </SelectValue>
                         </SelectTrigger>
                         <SelectContent>
                           {CONTRACT_TYPES.map((c) => (
                             <SelectItem key={c.value} value={c.value}>
-                              {c.label}
+                              {t(c.labelKey)}
                             </SelectItem>
                           ))}
                         </SelectContent>
                       </Select>
                     ) : (
                       <div className="text-[13px]">
-                        {CONTRACT_TYPES.find(
+                        {t(CONTRACT_TYPES.find(
                           (c) =>
                             c.value ===
                             getDetail(selectedProfile.id)?.contract_type
-                        )?.label ?? "-"}
+                        )?.labelKey ?? "") || "-"}
                       </div>
                     )}
                   </div>
@@ -547,7 +554,7 @@ export default function HRDashboardPage() {
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <Label className="text-[11px] text-muted-foreground">
-                      Tanggal Bergabung
+                      {t("hr.join_date")}
                     </Label>
                     {editing ? (
                       <Input
@@ -564,7 +571,7 @@ export default function HRDashboardPage() {
                   </div>
                   <div>
                     <Label className="text-[11px] text-muted-foreground">
-                      Telepon
+                      {t("hr.phone")}
                     </Label>
                     {editing ? (
                       <Input
@@ -582,7 +589,7 @@ export default function HRDashboardPage() {
 
                 <div>
                   <Label className="text-[11px] text-muted-foreground">
-                    Alamat
+                    {t("hr.address")}
                   </Label>
                   {editing ? (
                     <Input
@@ -599,7 +606,7 @@ export default function HRDashboardPage() {
 
                 <div>
                   <Label className="text-[11px] text-muted-foreground">
-                    Gaji Pokok
+                    {t("hr.base_salary")}
                   </Label>
                   {editing ? (
                     <Input
@@ -624,14 +631,14 @@ export default function HRDashboardPage() {
                       className="h-9 text-[12px]"
                       onClick={() => setEditing(false)}
                     >
-                      Batal
+                      {t("common.cancel")}
                     </Button>
                     <Button
-                      className="h-9 bg-[oklch(0.65_0.18_260)] text-white text-[12px] hover:bg-[oklch(0.60_0.20_260)]"
+                      className="h-9 bg-primary text-white text-[12px] hover:bg-primary/90"
                       onClick={handleSave}
                       disabled={saving}
                     >
-                      {saving ? "Menyimpan..." : "Simpan"}
+                      {saving ? t("common.saving") : t("common.save")}
                     </Button>
                   </div>
                 )}

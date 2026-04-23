@@ -34,23 +34,26 @@ import {
   LayoutGrid,
   ShoppingCart,
 } from "lucide-react";
+import { useLang } from "@/lib/i18n";
+import { translateCommodity, formatDateLocale } from "@/lib/translate-helpers";
+import type { Lang } from "@/lib/i18n-dict";
 
 /* ------------------------------------------------------------------ */
 /*  Status maps                                                        */
 /* ------------------------------------------------------------------ */
 
-const ORDER_STATUS: Record<string, { label: string; color: string }> = {
-  pending: { label: "Menunggu", color: "bg-amber-500/20 text-amber-400" },
-  confirmed: { label: "Dikonfirmasi", color: "bg-sky-500/20 text-sky-400" },
-  delivered: { label: "Dikirim", color: "bg-emerald-500/20 text-emerald-400" },
-  paid: { label: "Lunas", color: "bg-green-500/20 text-green-400" },
-  cancelled: { label: "Dibatalkan", color: "bg-red-500/20 text-red-400" },
+const ORDER_STATUS_COLOR: Record<string, string> = {
+  pending: "bg-amber-500/20 text-amber-400",
+  confirmed: "bg-sky-500/20 text-sky-400",
+  delivered: "bg-emerald-500/20 text-emerald-400",
+  paid: "bg-green-500/20 text-green-400",
+  cancelled: "bg-red-500/20 text-red-400",
 };
 
-const PAYMENT_STATUS: Record<string, { label: string; color: string }> = {
-  unpaid: { label: "Belum Bayar", color: "bg-red-500/20 text-red-400" },
-  partial: { label: "Sebagian", color: "bg-amber-500/20 text-amber-400" },
-  paid: { label: "Lunas", color: "bg-green-500/20 text-green-400" },
+const PAYMENT_STATUS_COLOR: Record<string, string> = {
+  unpaid: "bg-red-500/20 text-red-400",
+  partial: "bg-amber-500/20 text-amber-400",
+  paid: "bg-green-500/20 text-green-400",
 };
 
 /* ------------------------------------------------------------------ */
@@ -94,12 +97,6 @@ interface SalesOrder {
 type SortKey = "date_desc" | "date_asc" | "revenue_desc";
 type ViewMode = "list" | "grid";
 
-const SORT_LABELS: Record<SortKey, string> = {
-  date_desc: "Terbaru",
-  date_asc: "Terlama",
-  revenue_desc: "Revenue Tertinggi",
-};
-
 /* ------------------------------------------------------------------ */
 /*  Helpers                                                            */
 /* ------------------------------------------------------------------ */
@@ -110,8 +107,8 @@ const fmtCurrency = new Intl.NumberFormat("id-ID", {
   minimumFractionDigits: 0,
 });
 
-function fmtDate(iso: string) {
-  return new Date(iso).toLocaleDateString("id-ID", {
+function fmtDate(iso: string, lang: Lang) {
+  return formatDateLocale(iso, lang, {
     day: "2-digit",
     month: "short",
     year: "numeric",
@@ -124,6 +121,24 @@ function fmtDate(iso: string) {
 
 export default function SalesLogPage() {
   const supabase = createClient();
+  const { t, lang } = useLang();
+  const ORDER_STATUS_LABEL: Record<string, string> = {
+    pending: t("sales.menunggu"),
+    confirmed: t("sales.dikonfirmasi"),
+    delivered: t("sales.dikirim"),
+    paid: t("sales.lunas"),
+    cancelled: t("sales.dibatalkan"),
+  };
+  const PAYMENT_STATUS_LABEL: Record<string, string> = {
+    unpaid: t("sales.belum_bayar"),
+    partial: t("sales.sebagian"),
+    paid: t("sales.lunas"),
+  };
+  const SORT_LABELS: Record<SortKey, string> = {
+    date_desc: t("sales.sort_newest"),
+    date_asc: t("sales.sort_terlama"),
+    revenue_desc: t("sales.sort_revenue_desc"),
+  };
 
   /* ---------- data state ---------- */
   const [orders, setOrders] = useState<SalesOrder[]>([]);
@@ -210,23 +225,23 @@ export default function SalesLogPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-lg font-semibold text-foreground">Log Penjualan</h1>
+      <h1 className="text-lg font-semibold text-foreground">{t("sales.log_title")}</h1>
 
       {/* Summary cards */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         <div className="rounded-lg border border-border/40 bg-card p-4">
-          <p className="text-xs text-muted-foreground">Total Penjualan</p>
+          <p className="text-xs text-muted-foreground">{t("sales.total_sales")}</p>
           <p className="text-2xl font-bold mt-1">
             {totalSales}
-            <span className="text-sm font-normal text-muted-foreground ml-1">order</span>
+            <span className="text-sm font-normal text-muted-foreground ml-1">{t("sales.order_unit")}</span>
           </p>
         </div>
         <div className="rounded-lg border border-border/40 bg-card p-4">
-          <p className="text-xs text-muted-foreground">Total Revenue</p>
+          <p className="text-xs text-muted-foreground">{t("sales.total_revenue")}</p>
           <p className="text-2xl font-bold mt-1">{fmtCurrency.format(totalRevenue)}</p>
         </div>
         <div className="rounded-lg border border-border/40 bg-card p-4">
-          <p className="text-xs text-muted-foreground">Rata-rata Order</p>
+          <p className="text-xs text-muted-foreground">{t("sales.avg_order")}</p>
           <p className="text-2xl font-bold mt-1">{fmtCurrency.format(avgOrder)}</p>
         </div>
       </div>
@@ -251,15 +266,18 @@ export default function SalesLogPage() {
           <SelectTrigger className="w-[160px] h-9 bg-secondary border-border/50 text-[13px]">
             <SelectValue>
               {cropFilter === "all"
-                ? "Semua Komoditas"
-                : crops.find((c) => String(c.id) === cropFilter)?.name_id ?? cropFilter}
+                ? t("sales.all_commodities")
+                : translateCommodity(
+                    crops.find((c) => String(c.id) === cropFilter)?.name_id ?? cropFilter,
+                    lang
+                  )}
             </SelectValue>
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">Semua Komoditas</SelectItem>
+            <SelectItem value="all">{t("sales.all_commodities")}</SelectItem>
             {crops.map((c) => (
               <SelectItem key={c.id} value={String(c.id)}>
-                {c.name_id}
+                {translateCommodity(c.name_id, lang)}
               </SelectItem>
             ))}
           </SelectContent>
@@ -269,12 +287,12 @@ export default function SalesLogPage() {
           <SelectTrigger className="w-[170px] h-9 bg-secondary border-border/50 text-[13px]">
             <SelectValue>
               {customerFilter === "all"
-                ? "Semua Pelanggan"
+                ? t("sales.all_customers")
                 : customers.find((c) => String(c.id) === customerFilter)?.name ?? customerFilter}
             </SelectValue>
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">Semua Pelanggan</SelectItem>
+            <SelectItem value="all">{t("sales.all_customers")}</SelectItem>
             {customers.map((c) => (
               <SelectItem key={c.id} value={String(c.id)}>
                 {c.name}
@@ -307,7 +325,7 @@ export default function SalesLogPage() {
       {loading && (
         <Card className="rounded-xl border border-border/40 bg-card">
           <CardContent className="py-12 text-center text-muted-foreground">
-            Memuat data penjualan...
+            {t("sales.loading_sales")}
           </CardContent>
         </Card>
       )}
@@ -317,7 +335,7 @@ export default function SalesLogPage() {
         <Card className="rounded-xl border border-border/40 bg-card">
           <CardContent className="py-16 text-center">
             <ShoppingCart className="w-10 h-10 text-muted-foreground/40 mx-auto mb-3" />
-            <p className="text-sm text-muted-foreground">Belum ada transaksi penjualan.</p>
+            <p className="text-sm text-muted-foreground">{t("sales.no_sales_txn")}</p>
           </CardContent>
         </Card>
       )}
@@ -328,11 +346,11 @@ export default function SalesLogPage() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead className="text-[12px] text-muted-foreground">Tanggal</TableHead>
-                <TableHead className="text-[12px] text-muted-foreground">Pelanggan</TableHead>
-                <TableHead className="text-[12px] text-muted-foreground">Komoditas</TableHead>
-                <TableHead className="text-[12px] text-muted-foreground text-right">Total</TableHead>
-                <TableHead className="text-[12px] text-muted-foreground">Status</TableHead>
+                <TableHead className="text-[12px] text-muted-foreground">{t("sales.col_date")}</TableHead>
+                <TableHead className="text-[12px] text-muted-foreground">{t("sales.col_customer")}</TableHead>
+                <TableHead className="text-[12px] text-muted-foreground">{t("sales.commodity")}</TableHead>
+                <TableHead className="text-[12px] text-muted-foreground text-right">{t("sales.col_total")}</TableHead>
+                <TableHead className="text-[12px] text-muted-foreground">{t("sales.col_status")}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -345,19 +363,19 @@ export default function SalesLogPage() {
                     setDetailOpen(true);
                   }}
                 >
-                  <TableCell className="text-[13px]">{fmtDate(order.created_at)}</TableCell>
+                  <TableCell className="text-[13px]">{fmtDate(order.created_at, lang)}</TableCell>
                   <TableCell className="text-[13px]">{order.customers?.name ?? "-"}</TableCell>
                   <TableCell className="text-[13px]">
                     {order.sales_order_items
-                      .map((i) => i.crop_catalog?.name_id ?? "?")
+                      .map((i) => translateCommodity(i.crop_catalog?.name_id ?? "?", lang))
                       .join(", ")}
                   </TableCell>
                   <TableCell className="text-[13px] text-right font-medium">
                     {fmtCurrency.format(order.total_amount)}
                   </TableCell>
                   <TableCell>
-                    <Badge variant="outline" className={`text-[11px] border-0 ${ORDER_STATUS[order.status]?.color ?? ""}`}>
-                      {ORDER_STATUS[order.status]?.label ?? order.status}
+                    <Badge variant="outline" className={`text-[11px] border-0 ${ORDER_STATUS_COLOR[order.status] ?? ""}`}>
+                      {ORDER_STATUS_LABEL[order.status] ?? order.status}
                     </Badge>
                   </TableCell>
                 </TableRow>
@@ -381,21 +399,21 @@ export default function SalesLogPage() {
             >
               <CardContent className="p-4 space-y-3">
                 <div>
-                  <p className="text-[12px] text-muted-foreground">{fmtDate(order.created_at)}</p>
+                  <p className="text-[12px] text-muted-foreground">{fmtDate(order.created_at, lang)}</p>
                   <p className="text-[14px] font-medium text-foreground">
                     {order.customers?.name ?? "-"}
                   </p>
                 </div>
                 <p className="text-[13px] text-muted-foreground">
                   {order.sales_order_items
-                    .map((i) => `${i.crop_catalog?.name_id ?? "?"} (${i.quantity_kg} kg)`)
+                    .map((i) => `${translateCommodity(i.crop_catalog?.name_id ?? "?", lang)} (${i.quantity_kg} kg)`)
                     .join(", ")}
                 </p>
                 <p className="text-xl font-bold text-foreground">
                   {fmtCurrency.format(order.total_amount)}
                 </p>
-                <Badge variant="outline" className={`text-[11px] border-0 ${ORDER_STATUS[order.status]?.color ?? ""}`}>
-                  {ORDER_STATUS[order.status]?.label ?? order.status}
+                <Badge variant="outline" className={`text-[11px] border-0 ${ORDER_STATUS_COLOR[order.status] ?? ""}`}>
+                  {ORDER_STATUS_LABEL[order.status] ?? order.status}
                 </Badge>
               </CardContent>
             </Card>
@@ -410,7 +428,7 @@ export default function SalesLogPage() {
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto bg-card border-border/40">
           <DialogHeader>
             <DialogTitle className="text-foreground">
-              Detail Order {detailOrder?.order_number}
+              {t("sales.detail_order")} {detailOrder?.order_number}
             </DialogTitle>
           </DialogHeader>
 
@@ -418,34 +436,34 @@ export default function SalesLogPage() {
             <div className="space-y-4 mt-2">
               <div className="grid grid-cols-2 gap-3 text-[13px]">
                 <div>
-                  <p className="text-muted-foreground">Tanggal</p>
-                  <p className="font-medium text-foreground">{fmtDate(detailOrder.created_at)}</p>
+                  <p className="text-muted-foreground">{t("sales.col_date")}</p>
+                  <p className="font-medium text-foreground">{fmtDate(detailOrder.created_at, lang)}</p>
                 </div>
                 <div>
-                  <p className="text-muted-foreground">Pelanggan</p>
+                  <p className="text-muted-foreground">{t("sales.col_customer")}</p>
                   <p className="font-medium text-foreground">{detailOrder.customers?.name ?? "-"}</p>
                 </div>
                 <div>
-                  <p className="text-muted-foreground">Metode Pembayaran</p>
+                  <p className="text-muted-foreground">{t("sales.payment_method")}</p>
                   <p className="font-medium text-foreground">{detailOrder.payment_method}</p>
                 </div>
                 <div>
-                  <p className="text-muted-foreground">Status</p>
-                  <Badge variant="outline" className={`text-[11px] border-0 ${ORDER_STATUS[detailOrder.status]?.color ?? ""}`}>
-                    {ORDER_STATUS[detailOrder.status]?.label ?? detailOrder.status}
+                  <p className="text-muted-foreground">{t("sales.col_status")}</p>
+                  <Badge variant="outline" className={`text-[11px] border-0 ${ORDER_STATUS_COLOR[detailOrder.status] ?? ""}`}>
+                    {ORDER_STATUS_LABEL[detailOrder.status] ?? detailOrder.status}
                   </Badge>
                 </div>
                 <div>
-                  <p className="text-muted-foreground">Status Bayar</p>
-                  <Badge variant="outline" className={`text-[11px] border-0 ${PAYMENT_STATUS[detailOrder.payment_status]?.color ?? ""}`}>
-                    {PAYMENT_STATUS[detailOrder.payment_status]?.label ?? detailOrder.payment_status}
+                  <p className="text-muted-foreground">{t("sales.payment_status")}</p>
+                  <Badge variant="outline" className={`text-[11px] border-0 ${PAYMENT_STATUS_COLOR[detailOrder.payment_status] ?? ""}`}>
+                    {PAYMENT_STATUS_LABEL[detailOrder.payment_status] ?? detailOrder.payment_status}
                   </Badge>
                 </div>
               </div>
 
               {detailOrder.notes && (
                 <div className="text-[13px]">
-                  <p className="text-muted-foreground">Catatan</p>
+                  <p className="text-muted-foreground">{t("sales.notes")}</p>
                   <p className="text-foreground">{detailOrder.notes}</p>
                 </div>
               )}
@@ -453,22 +471,22 @@ export default function SalesLogPage() {
               <Separator />
 
               <div>
-                <p className="text-[13px] font-medium text-foreground mb-2">Item</p>
+                <p className="text-[13px] font-medium text-foreground mb-2">{t("sales.item_label")}</p>
                 <div className="rounded-lg border border-border/40 bg-card overflow-hidden">
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead className="text-[12px] text-muted-foreground">Komoditas</TableHead>
-                        <TableHead className="text-[12px] text-muted-foreground">Grade</TableHead>
-                        <TableHead className="text-[12px] text-muted-foreground text-right">Qty (kg)</TableHead>
-                        <TableHead className="text-[12px] text-muted-foreground text-right">Harga/kg</TableHead>
-                        <TableHead className="text-[12px] text-muted-foreground text-right">Subtotal</TableHead>
+                        <TableHead className="text-[12px] text-muted-foreground">{t("sales.commodity")}</TableHead>
+                        <TableHead className="text-[12px] text-muted-foreground">{t("sales.grade")}</TableHead>
+                        <TableHead className="text-[12px] text-muted-foreground text-right">{t("sales.col_qty_kg")}</TableHead>
+                        <TableHead className="text-[12px] text-muted-foreground text-right">{t("sales.col_price_kg")}</TableHead>
+                        <TableHead className="text-[12px] text-muted-foreground text-right">{t("sales.col_subtotal")}</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {detailOrder.sales_order_items.map((item, idx) => (
                         <TableRow key={idx}>
-                          <TableCell className="text-[13px]">{item.crop_catalog?.name_id ?? "-"}</TableCell>
+                          <TableCell className="text-[13px]">{translateCommodity(item.crop_catalog?.name_id ?? "-", lang)}</TableCell>
                           <TableCell className="text-[13px]">{item.grade}</TableCell>
                           <TableCell className="text-[13px] text-right">{item.quantity_kg}</TableCell>
                           <TableCell className="text-[13px] text-right">{fmtCurrency.format(item.price_per_kg)}</TableCell>
@@ -479,7 +497,7 @@ export default function SalesLogPage() {
                   </Table>
                 </div>
                 <div className="text-right mt-2">
-                  <span className="text-[13px] text-muted-foreground">Total: </span>
+                  <span className="text-[13px] text-muted-foreground">{t("sales.col_total")}: </span>
                   <span className="text-lg font-bold text-foreground">{fmtCurrency.format(detailOrder.total_amount)}</span>
                 </div>
               </div>

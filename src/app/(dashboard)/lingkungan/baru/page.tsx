@@ -12,10 +12,12 @@ import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
 import { RACK_CONFIG } from "@/lib/constants";
+import { useLang } from "@/lib/i18n";
 
 export default function NewEnvironmentalLogPage() {
   const router = useRouter();
   const supabase = createClient();
+  const { t } = useLang();
   const [loading, setLoading] = useState(false);
 
   // Scope
@@ -27,8 +29,20 @@ export default function NewEnvironmentalLogPage() {
   const [tempC, setTempC] = useState("");
   const [humidity, setHumidity] = useState("");
   const [co2, setCo2] = useState("");
-  const [vpd, setVpd] = useState("");
   const [ppfd, setPpfd] = useState("");
+
+  // VPD otomatis dari suhu & RH (rumus Tetens).
+  // SVP = 610.78 × e^(17.2694·T / (T + 237.3))  [Pa]
+  // VPD = SVP × (1 − RH/100)                     [Pa]
+  const vpdKpa = (() => {
+    const tVal = Number(tempC);
+    const rh = Number(humidity);
+    if (!tempC || !humidity || !Number.isFinite(tVal) || !Number.isFinite(rh)) return null;
+    if (rh < 0 || rh > 100) return null;
+    const svp = 610.78 * Math.exp((17.2694 * tVal) / (tVal + 237.3));
+    const vpdPa = svp * (1 - rh / 100);
+    return vpdPa / 1000;
+  })();
 
   // Equipment
   const [growlightOn, setGrowlightOn] = useState(true);
@@ -49,7 +63,7 @@ export default function NewEnvironmentalLogPage() {
       temperature_c: tempC ? Number(tempC) : null,
       humidity_pct: humidity ? Number(humidity) : null,
       co2_ppm: co2 ? Number(co2) : null,
-      vpd_kpa: vpd ? Number(vpd) : null,
+      vpd_kpa: vpdKpa != null ? Number(vpdKpa.toFixed(2)) : null,
       ppfd_umol: ppfd ? Number(ppfd) : null,
       growlight_on: growlightOn,
       ac_on: acOn,
@@ -59,9 +73,9 @@ export default function NewEnvironmentalLogPage() {
     });
 
     if (error) {
-      toast.error("Gagal menyimpan: " + error.message);
+      toast.error(t("env.save_failed") + error.message);
     } else {
-      toast.success("Log lingkungan berhasil dicatat");
+      toast.success(t("env.save_success"));
       router.push("/lingkungan");
       router.refresh();
     }
@@ -69,18 +83,18 @@ export default function NewEnvironmentalLogPage() {
   }
 
   return (
-    <FloatingForm title="Catat Log Lingkungan" backHref="/lingkungan">
+    <FloatingForm title={t("env.form_title")} backHref="/lingkungan">
       <form onSubmit={handleSubmit} className="space-y-4">
             {/* Scope */}
             <div className="space-y-2">
-              <Label className="text-[13px] text-muted-foreground">Lokasi Pengukuran</Label>
+              <Label className="text-[13px] text-muted-foreground">{t("env.location_measurement")}</Label>
               <Select value={scope} onValueChange={(v) => v !== null && setScope(v as "room" | "rack")}>
                 <SelectTrigger className="h-11 bg-secondary border-border/50 text-foreground">
-                  <SelectValue>{scope === "room" ? "Seluruh Ruangan" : "Rak Tertentu"}</SelectValue>
+                  <SelectValue>{scope === "room" ? t("env.entire_room") : t("env.specific_rack")}</SelectValue>
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="room">Seluruh Ruangan</SelectItem>
-                  <SelectItem value="rack">Rak Tertentu</SelectItem>
+                  <SelectItem value="room">{t("env.entire_room")}</SelectItem>
+                  <SelectItem value="rack">{t("env.specific_rack")}</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -88,27 +102,27 @@ export default function NewEnvironmentalLogPage() {
             {scope === "rack" && (
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-2">
-                  <Label className="text-[13px] text-muted-foreground">Rak</Label>
+                  <Label className="text-[13px] text-muted-foreground">{t("cult.rack")}</Label>
                   <Select value={rack} onValueChange={(v) => v !== null && setRack(v)}>
                     <SelectTrigger className="h-11 bg-secondary border-border/50 text-foreground">
-                      <SelectValue>{`Rak ${rack}`}</SelectValue>
+                      <SelectValue>{`${t("cult.rack")} ${rack}`}</SelectValue>
                     </SelectTrigger>
                     <SelectContent>
                       {RACK_CONFIG.racks.map((r) => (
-                        <SelectItem key={r} value={r}>Rak {r}</SelectItem>
+                        <SelectItem key={r} value={r}>{t("cult.rack")} {r}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
                 </div>
                 <div className="space-y-2">
-                  <Label className="text-[13px] text-muted-foreground">Tingkat</Label>
+                  <Label className="text-[13px] text-muted-foreground">{t("cult.tier")}</Label>
                   <Select value={tier} onValueChange={(v) => v !== null && setTier(v)}>
                     <SelectTrigger className="h-11 bg-secondary border-border/50 text-foreground">
-                      <SelectValue>{`Tingkat ${tier}`}</SelectValue>
+                      <SelectValue>{`${t("cult.tier")} ${tier}`}</SelectValue>
                     </SelectTrigger>
                     <SelectContent>
-                      {RACK_CONFIG.tiers.map((t) => (
-                        <SelectItem key={t} value={String(t)}>Tingkat {t}</SelectItem>
+                      {RACK_CONFIG.tiers.map((tr) => (
+                        <SelectItem key={tr} value={String(tr)}>{t("cult.tier")} {tr}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
@@ -119,7 +133,7 @@ export default function NewEnvironmentalLogPage() {
             {/* Environmental readings */}
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-2">
-                <Label className="text-[13px] text-muted-foreground">Suhu Udara (°C)</Label>
+                <Label className="text-[13px] text-muted-foreground">{t("env.temperature_air")}</Label>
                 <Input
                   type="number"
                   className="h-11 bg-secondary border-border/50 text-foreground placeholder:text-muted-foreground/50"
@@ -130,7 +144,7 @@ export default function NewEnvironmentalLogPage() {
                 />
               </div>
               <div className="space-y-2">
-                <Label className="text-[13px] text-muted-foreground">Kelembaban (%RH)</Label>
+                <Label className="text-[13px] text-muted-foreground">{t("env.humidity_rh")}</Label>
                 <Input
                   type="number"
                   className="h-11 bg-secondary border-border/50 text-foreground placeholder:text-muted-foreground/50"
@@ -152,15 +166,20 @@ export default function NewEnvironmentalLogPage() {
                 />
               </div>
               <div className="space-y-2">
-                <Label className="text-[13px] text-muted-foreground">VPD (kPa)</Label>
-                <Input
-                  type="number"
-                  className="h-11 bg-secondary border-border/50 text-foreground placeholder:text-muted-foreground/50"
-                  placeholder="1.2"
-                  value={vpd}
-                  onChange={(e) => setVpd(e.target.value)}
-                  step="0.01"
-                />
+                <Label className="text-[13px] text-muted-foreground inline-flex items-center gap-1.5">
+                  VPD (kPa)
+                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-primary/10 text-primary">auto</span>
+                </Label>
+                <div className="h-11 px-3 rounded-md bg-secondary/40 border border-border/30 border-dashed flex items-center justify-between text-foreground">
+                  <span className={vpdKpa != null ? "tabular-nums" : "text-muted-foreground/60 text-[13px]"}>
+                    {vpdKpa != null ? vpdKpa.toFixed(2) : t("env.vpd_auto_hint")}
+                  </span>
+                  {vpdKpa != null && (
+                    <span className="text-[10px] text-muted-foreground">
+                      {t("env.vpd_from")} {Number(tempC).toFixed(1)}°C · {Number(humidity).toFixed(0)}%RH
+                    </span>
+                  )}
+                </div>
               </div>
               <div className="space-y-2">
                 <Label className="text-[13px] text-muted-foreground">PPFD (μmol/m²/s)</Label>
@@ -177,34 +196,34 @@ export default function NewEnvironmentalLogPage() {
 
             {/* Equipment status */}
             <div className="space-y-3">
-              <Label className="text-[13px] text-muted-foreground">Status Peralatan</Label>
+              <Label className="text-[13px] text-muted-foreground">{t("env.equipment_status")}</Label>
               <div className="flex items-center justify-between py-2 px-3 rounded-md bg-secondary/50">
-                <span className="text-[13px] text-foreground">Growlight</span>
+                <span className="text-[13px] text-foreground">{t("env.growlight")}</span>
                 <Switch checked={growlightOn} onCheckedChange={setGrowlightOn} />
               </div>
               <div className="flex items-center justify-between py-2 px-3 rounded-md bg-secondary/50">
-                <span className="text-[13px] text-foreground">AC</span>
+                <span className="text-[13px] text-foreground">{t("env.ac")}</span>
                 <Switch checked={acOn} onCheckedChange={setAcOn} />
               </div>
               <div className="flex items-center justify-between py-2 px-3 rounded-md bg-secondary/50">
-                <span className="text-[13px] text-foreground">Kipas Sirkulasi</span>
+                <span className="text-[13px] text-foreground">{t("env.fan_circulation")}</span>
                 <Switch checked={fanOn} onCheckedChange={setFanOn} />
               </div>
             </div>
 
             {/* Notes */}
             <div className="space-y-2">
-              <Label className="text-[13px] text-muted-foreground">Catatan (opsional)</Label>
+              <Label className="text-[13px] text-muted-foreground">{t("common.notes_optional")}</Label>
               <Textarea
                 className="bg-secondary border-border/50 text-foreground placeholder:text-muted-foreground/50"
-                placeholder="Catatan tambahan..."
+                placeholder={t("env.notes_placeholder")}
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
               />
             </div>
 
-            <Button type="submit" className="w-full h-11 bg-[oklch(0.65_0.18_260)] hover:bg-[oklch(0.60_0.20_260)] text-white" disabled={loading}>
-              {loading ? "Menyimpan..." : "Simpan Log"}
+            <Button type="submit" className="w-full h-11 bg-primary hover:bg-primary/90 text-white" disabled={loading}>
+              {loading ? t("common.saving") : t("env.save_log_btn")}
             </Button>
       </form>
     </FloatingForm>

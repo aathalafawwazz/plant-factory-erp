@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { useLang } from "@/lib/i18n";
 import { Card, CardContent } from "@/components/ui/card";
 import {
   Select,
@@ -42,11 +43,11 @@ const BAR_COLORS = {
   nutrient: "#818fff",
 };
 
-const PERIOD_OPTIONS: { value: PeriodFilter; label: string }[] = [
-  { value: "week", label: "Minggu Ini" },
-  { value: "month", label: "Bulan Ini" },
-  { value: "3months", label: "3 Bulan" },
-  { value: "all", label: "Semua" },
+const PERIOD_OPTIONS: { value: PeriodFilter; labelKey: string }[] = [
+  { value: "week", labelKey: "wl.period_week" },
+  { value: "month", labelKey: "wl.period_month" },
+  { value: "3months", labelKey: "wl.period_3months" },
+  { value: "all", labelKey: "wl.period_all" },
 ];
 
 /* ------------------------------------------------------------------ */
@@ -90,6 +91,7 @@ function countByUser(
 
 export default function BebanKerjaPage() {
   const supabase = createClient();
+  const { t } = useLang();
 
   const [period, setPeriod] = useState<PeriodFilter>("month");
   const [workloads, setWorkloads] = useState<UserWorkload[]>([]);
@@ -204,18 +206,18 @@ export default function BebanKerjaPage() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-lg font-semibold text-foreground">Beban Kerja</h1>
+        <h1 className="text-lg font-semibold text-foreground">{t("wl.title")}</h1>
         <Select
           value={period}
           onValueChange={(v) => v !== null && setPeriod(v as PeriodFilter)}
         >
           <SelectTrigger className="w-[160px] h-9 bg-secondary border-border/50 text-[13px]">
-            <SelectValue>{PERIOD_OPTIONS.find((o) => o.value === period)?.label}</SelectValue>
+            <SelectValue>{t(PERIOD_OPTIONS.find((o) => o.value === period)?.labelKey ?? "")}</SelectValue>
           </SelectTrigger>
           <SelectContent>
             {PERIOD_OPTIONS.map((opt) => (
               <SelectItem key={opt.value} value={opt.value}>
-                {opt.label}
+                {t(opt.labelKey)}
               </SelectItem>
             ))}
           </SelectContent>
@@ -225,7 +227,7 @@ export default function BebanKerjaPage() {
       {loading && (
         <Card className="rounded-xl border border-border/40 bg-card">
           <CardContent className="py-12 text-center text-muted-foreground">
-            Memuat data beban kerja...
+            {t("wl.loading")}
           </CardContent>
         </Card>
       )}
@@ -235,7 +237,7 @@ export default function BebanKerjaPage() {
           <CardContent className="py-16 text-center">
             <BarChart3 className="w-10 h-10 text-muted-foreground/40 mx-auto mb-3" />
             <p className="text-sm text-muted-foreground">
-              Belum ada data aktivitas untuk periode ini.
+              {t("wl.no_activity")}
             </p>
           </CardContent>
         </Card>
@@ -262,14 +264,14 @@ export default function BebanKerjaPage() {
                   </Badge>
                 </div>
                 <span className="text-xs text-muted-foreground">
-                  Total: {w.total}
+                  {t("wl.total")}: {w.total}
                 </span>
               </div>
 
               {/* 4-column stat grid */}
               <div className="grid grid-cols-4 gap-2">
                 <div className="text-center">
-                  <p className="text-[11px] text-muted-foreground">Tanam</p>
+                  <p className="text-[11px] text-muted-foreground">{t("wl.planting")}</p>
                   <p
                     className="text-lg font-bold"
                     style={{ color: BAR_COLORS.planting }}
@@ -278,7 +280,7 @@ export default function BebanKerjaPage() {
                   </p>
                 </div>
                 <div className="text-center">
-                  <p className="text-[11px] text-muted-foreground">Panen</p>
+                  <p className="text-[11px] text-muted-foreground">{t("wl.harvesting")}</p>
                   <p
                     className="text-lg font-bold"
                     style={{ color: BAR_COLORS.harvesting }}
@@ -287,7 +289,7 @@ export default function BebanKerjaPage() {
                   </p>
                 </div>
                 <div className="text-center">
-                  <p className="text-[11px] text-muted-foreground">Lingkungan</p>
+                  <p className="text-[11px] text-muted-foreground">{t("wl.environment")}</p>
                   <p
                     className="text-lg font-bold"
                     style={{ color: BAR_COLORS.environment }}
@@ -296,7 +298,7 @@ export default function BebanKerjaPage() {
                   </p>
                 </div>
                 <div className="text-center">
-                  <p className="text-[11px] text-muted-foreground">Nutrisi</p>
+                  <p className="text-[11px] text-muted-foreground">{t("wl.nutrient")}</p>
                   <p
                     className="text-lg font-bold"
                     style={{ color: BAR_COLORS.nutrient }}
@@ -316,7 +318,7 @@ export default function BebanKerjaPage() {
                           width: `${(w.planting / w.total) * 100}%`,
                           backgroundColor: BAR_COLORS.planting,
                         }}
-                        title={`Tanam: ${w.planting}`}
+                        title={`${t("wl.planting")}: ${w.planting}`}
                       />
                     )}
                     {w.harvesting > 0 && (
@@ -325,7 +327,7 @@ export default function BebanKerjaPage() {
                           width: `${(w.harvesting / w.total) * 100}%`,
                           backgroundColor: BAR_COLORS.harvesting,
                         }}
-                        title={`Panen: ${w.harvesting}`}
+                        title={`${t("wl.harvesting")}: ${w.harvesting}`}
                       />
                     )}
                     {w.environment > 0 && (
@@ -334,7 +336,7 @@ export default function BebanKerjaPage() {
                           width: `${(w.environment / w.total) * 100}%`,
                           backgroundColor: BAR_COLORS.environment,
                         }}
-                        title={`Lingkungan: ${w.environment}`}
+                        title={`${t("wl.environment")}: ${w.environment}`}
                       />
                     )}
                     {w.nutrient > 0 && (
@@ -343,7 +345,7 @@ export default function BebanKerjaPage() {
                           width: `${(w.nutrient / w.total) * 100}%`,
                           backgroundColor: BAR_COLORS.nutrient,
                         }}
-                        title={`Nutrisi: ${w.nutrient}`}
+                        title={`${t("wl.nutrient")}: ${w.nutrient}`}
                       />
                     )}
                   </div>
@@ -354,7 +356,7 @@ export default function BebanKerjaPage() {
                           className="inline-block w-2 h-2 rounded-sm"
                           style={{ backgroundColor: BAR_COLORS.planting }}
                         />
-                        Tanam {((w.planting / w.total) * 100).toFixed(0)}%
+                        {t("wl.planting")} {((w.planting / w.total) * 100).toFixed(0)}%
                       </span>
                     )}
                     {w.harvesting > 0 && (
@@ -363,7 +365,7 @@ export default function BebanKerjaPage() {
                           className="inline-block w-2 h-2 rounded-sm"
                           style={{ backgroundColor: BAR_COLORS.harvesting }}
                         />
-                        Panen {((w.harvesting / w.total) * 100).toFixed(0)}%
+                        {t("wl.harvesting")} {((w.harvesting / w.total) * 100).toFixed(0)}%
                       </span>
                     )}
                     {w.environment > 0 && (
@@ -372,7 +374,7 @@ export default function BebanKerjaPage() {
                           className="inline-block w-2 h-2 rounded-sm"
                           style={{ backgroundColor: BAR_COLORS.environment }}
                         />
-                        Lingkungan {((w.environment / w.total) * 100).toFixed(0)}%
+                        {t("wl.environment")} {((w.environment / w.total) * 100).toFixed(0)}%
                       </span>
                     )}
                     {w.nutrient > 0 && (
@@ -381,7 +383,7 @@ export default function BebanKerjaPage() {
                           className="inline-block w-2 h-2 rounded-sm"
                           style={{ backgroundColor: BAR_COLORS.nutrient }}
                         />
-                        Nutrisi {((w.nutrient / w.total) * 100).toFixed(0)}%
+                        {t("wl.nutrient")} {((w.nutrient / w.total) * 100).toFixed(0)}%
                       </span>
                     )}
                   </div>

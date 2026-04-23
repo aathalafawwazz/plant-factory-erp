@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useMemo } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { useLang } from "@/lib/i18n";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -50,11 +51,11 @@ const STATUS_COLORS: Record<string, string> = {
 };
 
 const STATUS_OPTIONS = [
-  { value: "hadir", label: "Hadir" },
-  { value: "izin", label: "Izin" },
-  { value: "sakit", label: "Sakit" },
-  { value: "cuti", label: "Cuti" },
-  { value: "alpha", label: "Alpha" },
+  { value: "hadir", labelKey: "att.status_hadir" },
+  { value: "izin", labelKey: "att.status_izin" },
+  { value: "sakit", labelKey: "att.status_sakit" },
+  { value: "cuti", labelKey: "att.status_cuti" },
+  { value: "alpha", labelKey: "att.status_alpha" },
 ];
 
 type SortMode = "terbaru" | "terlama";
@@ -62,6 +63,7 @@ type ViewMode = "list" | "grid";
 
 export default function AbsensiPage() {
   const supabase = createClient();
+  const { t } = useLang();
 
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [profiles, setProfiles] = useState<Profile[]>([]);
@@ -157,11 +159,11 @@ export default function AbsensiPage() {
         overtime_hours: 0,
       });
       if (error) throw error;
-      toast.success("Clock In berhasil");
+      toast.success(t("att.clock_in_success"));
       await loadData(currentUserId);
     } catch (err: unknown) {
       const message =
-        err instanceof Error ? err.message : "Gagal clock in";
+        err instanceof Error ? err.message : t("att.clock_in_failed");
       toast.error(message);
     } finally {
       setClockLoading(false);
@@ -188,11 +190,11 @@ export default function AbsensiPage() {
         .eq("id", myToday.id);
 
       if (error) throw error;
-      toast.success("Clock Out berhasil");
+      toast.success(t("att.clock_out_success"));
       await loadData(currentUserId);
     } catch (err: unknown) {
       const message =
-        err instanceof Error ? err.message : "Gagal clock out";
+        err instanceof Error ? err.message : t("att.clock_out_failed");
       toast.error(message);
     } finally {
       setClockLoading(false);
@@ -243,7 +245,7 @@ export default function AbsensiPage() {
 
   async function handleManualSave() {
     if (!manualUserId || !manualDate) {
-      toast.error("User dan tanggal wajib diisi");
+      toast.error(t("att.user_date_required"));
       return;
     }
     setManualSaving(true);
@@ -288,12 +290,12 @@ export default function AbsensiPage() {
         .insert(payload);
 
       if (error) throw error;
-      toast.success("Absensi manual berhasil dicatat");
+      toast.success(t("att.manual_saved"));
       setManualOpen(false);
       await loadData(currentUserId);
     } catch (err: unknown) {
       const message =
-        err instanceof Error ? err.message : "Gagal menyimpan";
+        err instanceof Error ? err.message : t("common.save_failed");
       toast.error(message);
     } finally {
       setManualSaving(false);
@@ -303,7 +305,7 @@ export default function AbsensiPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64 text-muted-foreground text-sm">
-        Memuat data...
+        {t("common.loading_data")}
       </div>
     );
   }
@@ -311,26 +313,26 @@ export default function AbsensiPage() {
   return (
     <div>
       <h1 className="text-lg font-semibold text-foreground mb-4">
-        Absensi & Clock In/Out
+        {t("att.title")}
       </h1>
 
       {/* Clock In/Out Section */}
       <div className="rounded-lg border border-border/40 bg-card p-6 mb-6">
         <div className="flex items-center gap-3 mb-4">
           <Clock className="size-5 text-muted-foreground" />
-          <span className="text-[13px] font-medium">Status Hari Ini</span>
+          <span className="text-[13px] font-medium">{t("att.status_today")}</span>
         </div>
 
         <div className="flex items-center gap-4">
           <div className="flex-1">
             {clockStatus === "belum" && (
               <div className="text-[14px] text-muted-foreground">
-                Belum Clock In
+                {t("att.not_clocked_in")}
               </div>
             )}
             {clockStatus === "clocked_in" && (
               <div className="text-[14px]">
-                Sudah Clock In{" "}
+                {t("att.clocked_in")}{" "}
                 <span className="text-emerald-400 font-medium">
                   {formatTime(myToday?.clock_in ?? null)}
                 </span>
@@ -338,13 +340,13 @@ export default function AbsensiPage() {
             )}
             {clockStatus === "selesai" && (
               <div className="text-[14px]">
-                Selesai{" "}
+                {t("att.done")}{" "}
                 <span className="text-muted-foreground">
                   {formatTime(myToday?.clock_in ?? null)} -{" "}
                   {formatTime(myToday?.clock_out ?? null)}
                 </span>
                 <span className="ml-2 text-emerald-400 font-medium">
-                  ({myToday?.total_hours?.toFixed(1)} jam)
+                  ({myToday?.total_hours?.toFixed(1)} {t("hr.hours_unit")})
                 </span>
               </div>
             )}
@@ -357,7 +359,7 @@ export default function AbsensiPage() {
               disabled={clockLoading}
             >
               <LogIn className="size-5 mr-2" />
-              {clockLoading ? "Memproses..." : "Clock In"}
+              {clockLoading ? t("common.processing") : t("att.clock_in")}
             </Button>
           )}
           {clockStatus === "clocked_in" && (
@@ -367,7 +369,7 @@ export default function AbsensiPage() {
               disabled={clockLoading}
             >
               <LogOut className="size-5 mr-2" />
-              {clockLoading ? "Memproses..." : "Clock Out"}
+              {clockLoading ? t("common.processing") : t("att.clock_out")}
             </Button>
           )}
         </div>
@@ -383,12 +385,12 @@ export default function AbsensiPage() {
             <SelectTrigger className="h-9 bg-secondary border-border/50 text-[12px]">
               <ArrowUpDown className="size-3.5 mr-1.5" />
               <SelectValue>
-                {sortMode === "terbaru" ? "Terbaru" : "Terlama"}
+                {sortMode === "terbaru" ? t("att.sort_newest") : t("att.sort_oldest")}
               </SelectValue>
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="terbaru">Terbaru</SelectItem>
-              <SelectItem value="terlama">Terlama</SelectItem>
+              <SelectItem value="terbaru">{t("att.sort_newest")}</SelectItem>
+              <SelectItem value="terlama">{t("att.sort_oldest")}</SelectItem>
             </SelectContent>
           </Select>
 
@@ -417,11 +419,11 @@ export default function AbsensiPage() {
         </div>
 
         <Button
-          className="h-9 bg-[oklch(0.65_0.18_260)] text-white text-[12px] hover:bg-[oklch(0.60_0.20_260)]"
+          className="h-9 bg-primary text-white text-[12px] hover:bg-primary/90"
           onClick={openManualDialog}
         >
           <Plus className="size-4 mr-1" />
-          Catat Manual
+          {t("att.add_manual")}
         </Button>
       </div>
 
@@ -432,28 +434,28 @@ export default function AbsensiPage() {
             <TableHeader>
               <TableRow>
                 <TableHead className="text-[12px] text-muted-foreground">
-                  Tanggal
+                  {t("att.date")}
                 </TableHead>
                 <TableHead className="text-[12px] text-muted-foreground">
-                  Nama
+                  {t("att.name")}
                 </TableHead>
                 <TableHead className="text-[12px] text-muted-foreground">
-                  Clock In
+                  {t("att.clock_in")}
                 </TableHead>
                 <TableHead className="text-[12px] text-muted-foreground">
-                  Clock Out
+                  {t("att.clock_out")}
                 </TableHead>
                 <TableHead className="text-[12px] text-muted-foreground">
-                  Total Jam
+                  {t("att.total_hours")}
                 </TableHead>
                 <TableHead className="text-[12px] text-muted-foreground">
-                  Lembur
+                  {t("att.overtime")}
                 </TableHead>
                 <TableHead className="text-[12px] text-muted-foreground">
-                  Status
+                  {t("att.status")}
                 </TableHead>
                 <TableHead className="text-[12px] text-muted-foreground">
-                  Catatan
+                  {t("att.notes")}
                 </TableHead>
               </TableRow>
             </TableHeader>
@@ -464,7 +466,7 @@ export default function AbsensiPage() {
                     colSpan={8}
                     className="text-center text-muted-foreground py-8"
                   >
-                    Belum ada data absensi.
+                    {t("att.no_logs")}
                   </TableCell>
                 </TableRow>
               ) : (
@@ -516,7 +518,7 @@ export default function AbsensiPage() {
           {sortedLogs.length === 0 ? (
             <Card className="col-span-full rounded-lg border border-border/40 bg-card">
               <CardContent className="py-8 text-center text-muted-foreground">
-                Belum ada data absensi.
+                {t("att.no_logs")}
               </CardContent>
             </Card>
           ) : (
@@ -575,7 +577,7 @@ export default function AbsensiPage() {
           showCloseButton={true}
         >
           <DialogHeader className="p-4 pb-0">
-            <DialogTitle>Catat Absensi Manual</DialogTitle>
+            <DialogTitle>{t("att.manual_entry")}</DialogTitle>
           </DialogHeader>
 
           <Separator className="my-3" />
@@ -583,7 +585,7 @@ export default function AbsensiPage() {
           <div className="px-4 pb-4 space-y-3">
             <div>
               <Label className="text-[11px] text-muted-foreground">
-                Karyawan
+                {t("att.employee_label")}
               </Label>
               <Select
                 value={manualUserId}
@@ -593,7 +595,7 @@ export default function AbsensiPage() {
                   <SelectValue>
                     {manualUserId
                       ? getProfileName(manualUserId)
-                      : "Pilih karyawan"}
+                      : t("att.select_employee")}
                   </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
@@ -609,7 +611,7 @@ export default function AbsensiPage() {
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <Label className="text-[11px] text-muted-foreground">
-                  Tanggal
+                  {t("att.date")}
                 </Label>
                 <Input
                   type="date"
@@ -620,7 +622,7 @@ export default function AbsensiPage() {
               </div>
               <div>
                 <Label className="text-[11px] text-muted-foreground">
-                  Status
+                  {t("att.status")}
                 </Label>
                 <Select
                   value={manualStatus}
@@ -628,14 +630,14 @@ export default function AbsensiPage() {
                 >
                   <SelectTrigger className="h-9 bg-secondary border-border/50 text-[12px] w-full">
                     <SelectValue>
-                      {STATUS_OPTIONS.find((s) => s.value === manualStatus)
-                        ?.label ?? "Pilih status"}
+                      {t(STATUS_OPTIONS.find((s) => s.value === manualStatus)
+                        ?.labelKey ?? "") || t("att.select_status")}
                     </SelectValue>
                   </SelectTrigger>
                   <SelectContent>
                     {STATUS_OPTIONS.map((s) => (
                       <SelectItem key={s.value} value={s.value}>
-                        {s.label}
+                        {t(s.labelKey)}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -646,7 +648,7 @@ export default function AbsensiPage() {
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <Label className="text-[11px] text-muted-foreground">
-                  Clock In
+                  {t("att.clock_in")}
                 </Label>
                 <Input
                   type="time"
@@ -657,7 +659,7 @@ export default function AbsensiPage() {
               </div>
               <div>
                 <Label className="text-[11px] text-muted-foreground">
-                  Clock Out
+                  {t("att.clock_out")}
                 </Label>
                 <Input
                   type="time"
@@ -670,12 +672,12 @@ export default function AbsensiPage() {
 
             <div>
               <Label className="text-[11px] text-muted-foreground">
-                Catatan
+                {t("att.notes")}
               </Label>
               <Input
                 value={manualNotes}
                 onChange={(e) => setManualNotes(e.target.value)}
-                placeholder="Opsional"
+                placeholder={t("att.optional")}
                 className="h-9 bg-secondary border-border/50 text-[12px]"
               />
             </div>
@@ -686,14 +688,14 @@ export default function AbsensiPage() {
                 className="h-9 text-[12px]"
                 onClick={() => setManualOpen(false)}
               >
-                Batal
+                {t("common.cancel")}
               </Button>
               <Button
-                className="h-9 bg-[oklch(0.65_0.18_260)] text-white text-[12px] hover:bg-[oklch(0.60_0.20_260)]"
+                className="h-9 bg-primary text-white text-[12px] hover:bg-primary/90"
                 onClick={handleManualSave}
                 disabled={manualSaving}
               >
-                {manualSaving ? "Menyimpan..." : "Simpan"}
+                {manualSaving ? t("common.saving") : t("common.save")}
               </Button>
             </div>
           </div>

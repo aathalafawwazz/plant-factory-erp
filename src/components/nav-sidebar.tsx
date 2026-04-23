@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
@@ -11,6 +12,7 @@ import {
   Droplets, Leaf, FileBarChart, Users, LogOut, ChevronDown,
   ChevronLeft, ChevronRight,
   Clock, BarChart3, Wallet, ShoppingCart, Sun, Moon, Monitor, CalendarDays,
+  Boxes, Receipt, FlaskConical, UserCheck,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -33,12 +35,22 @@ const NAV_ITEMS: NavItem[] = [
     mobile: true,
     children: [
       { href: "/lubang", labelKey: "nav.hole_map" },
-      { href: "/tanam", labelKey: "nav.plant_log" },
       { href: "/panen", labelKey: "nav.harvest_log" },
       { href: "/lingkungan", labelKey: "nav.env_log" },
       { href: "/nutrisi", labelKey: "nav.nutrient_log" },
       { href: "/komoditas", labelKey: "nav.commodity" },
       { href: "/laporan", labelKey: "nav.report" },
+    ],
+  },
+  {
+    href: "/inventory",
+    labelKey: "nav.inventory",
+    icon: Boxes,
+    children: [
+      { href: "/inventory", labelKey: "nav.inventory_dashboard" },
+      { href: "/inventory/items", labelKey: "nav.inventory_items" },
+      { href: "/inventory/transaksi", labelKey: "nav.inventory_txn" },
+      { href: "/pengeluaran", labelKey: "nav.expenses" },
     ],
   },
   {
@@ -65,6 +77,8 @@ const NAV_ITEMS: NavItem[] = [
       { href: "/sales/laporan", labelKey: "nav.sales_report" },
     ],
   },
+  { href: "/riset", labelKey: "nav.research", icon: FlaskConical },
+  { href: "/kunjungan", labelKey: "nav.visits", icon: UserCheck },
   { href: "/kalender", labelKey: "nav.calendar", icon: CalendarDays, mobile: true },
 ];
 
@@ -91,7 +105,7 @@ export function BottomNav() {
   const { t } = useLang();
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-50 border-t border-border/50 bg-[oklch(0.11_0.005_260)] backdrop-blur-xl md:hidden">
+    <nav className="fixed bottom-0 left-0 right-0 z-50 border-t border-sidebar-border bg-sidebar/95 backdrop-blur-xl md:hidden">
       <div className="flex items-center justify-around h-16">
         {MOBILE_ITEMS.map((item) => {
           const Icon = item.icon;
@@ -108,7 +122,7 @@ export function BottomNav() {
               className={cn(
                 "flex flex-col items-center justify-center shrink-0 w-[72px] py-2 transition-all",
                 isActive
-                  ? "text-[oklch(0.65_0.18_260)]"
+                  ? "text-primary"
                   : "text-muted-foreground hover:text-foreground"
               )}
             >
@@ -140,6 +154,16 @@ export function DesktopSidebar({ displayName }: { displayName: string }) {
     if (saved === "true") setCollapsed(true);
   }, []);
 
+  // Listen for the global Ctrl+B shortcut (dispatched by <KeyboardShortcuts />).
+  useEffect(() => {
+    function onToggle(e: Event) {
+      const detail = (e as CustomEvent<{ collapsed: boolean }>).detail;
+      if (detail && typeof detail.collapsed === "boolean") setCollapsed(detail.collapsed);
+    }
+    window.addEventListener("pfms:sidebar-toggle", onToggle);
+    return () => window.removeEventListener("pfms:sidebar-toggle", onToggle);
+  }, []);
+
   useEffect(() => {
     document.documentElement.style.setProperty("--sidebar-width", collapsed ? "60px" : "220px");
   }, [collapsed]);
@@ -168,20 +192,45 @@ export function DesktopSidebar({ displayName }: { displayName: string }) {
 
   return (
     <aside className={cn(
-      "hidden md:flex md:flex-col md:fixed md:inset-y-0 border-r border-border/50 bg-[oklch(0.11_0.005_260)] transition-all duration-200",
+      "hidden md:flex md:flex-col md:fixed md:inset-y-0 border-r border-sidebar-border bg-sidebar text-sidebar-foreground transition-all duration-200",
       collapsed ? "md:w-[60px]" : "md:w-[220px]"
     )}>
+      {/* Floating collapse/expand button (attached to right edge, vertical center) */}
+      <button
+        onClick={toggleCollapsed}
+        aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+        className="hidden md:flex absolute top-1/2 -right-3 -translate-y-1/2 z-20 h-6 w-6 items-center justify-center rounded-full border border-border/60 bg-background text-muted-foreground hover:text-foreground hover:border-primary/50 shadow-sm transition-colors"
+      >
+        {collapsed ? <ChevronRight className="h-3.5 w-3.5" /> : <ChevronLeft className="h-3.5 w-3.5" />}
+      </button>
+
       <div className="flex flex-col flex-1">
         {/* Brand */}
         <div className="px-4 py-4 border-b border-border/50">
           <div className={cn("flex items-center", collapsed ? "justify-center" : "gap-2.5")}>
-            <div className="h-7 w-7 rounded-lg bg-[oklch(0.65_0.18_260)] flex items-center justify-center shrink-0">
-              <Sprout className="h-4 w-4 text-white" />
-            </div>
+            <Image
+              src="/agrosphere-logo.svg"
+              alt="Agrosphere"
+              width={32}
+              height={32}
+              priority
+              className="h-8 w-8 shrink-0"
+            />
             {!collapsed && (
-              <div>
-                <h1 className="text-sm font-semibold text-foreground leading-none">Plant Factory</h1>
-                <p className="text-[11px] text-muted-foreground mt-0.5">SARC UGM</p>
+              <div className="flex flex-col justify-center min-w-0 leading-tight">
+                <h1
+                  className="text-[15px] font-semibold pb-0.5 truncate"
+                  style={{
+                    background: "linear-gradient(90deg, #45DFB1 0%, #0AD1C8 100%)",
+                    WebkitBackgroundClip: "text",
+                    backgroundClip: "text",
+                    color: "transparent",
+                    lineHeight: 1.15,
+                  }}
+                >
+                  Agrosphere
+                </h1>
+                <p className="text-[11px] text-muted-foreground truncate">SmartAgri UGM</p>
               </div>
             )}
           </div>
@@ -205,7 +254,7 @@ export function DesktopSidebar({ displayName }: { displayName: string }) {
                     className={cn(
                       "flex items-center justify-center w-full px-2.5 py-[7px] rounded-md text-[13px] transition-all group",
                       active
-                        ? "bg-[oklch(0.65_0.18_260/0.12)] text-[oklch(0.75_0.15_260)] font-medium"
+                        ? "bg-primary/15 text-primary font-medium"
                         : "text-muted-foreground hover:bg-secondary hover:text-foreground"
                     )}
                   >
@@ -213,7 +262,7 @@ export function DesktopSidebar({ displayName }: { displayName: string }) {
                       className={cn(
                         "h-4 w-4 shrink-0",
                         active
-                          ? "text-[oklch(0.65_0.18_260)]"
+                          ? "text-primary"
                           : "text-muted-foreground group-hover:text-foreground"
                       )}
                     />
@@ -228,7 +277,7 @@ export function DesktopSidebar({ displayName }: { displayName: string }) {
                     className={cn(
                       "flex items-center justify-between w-full px-2.5 py-[7px] rounded-md text-[13px] transition-all group",
                       active
-                        ? "bg-[oklch(0.65_0.18_260/0.12)] text-[oklch(0.75_0.15_260)] font-medium"
+                        ? "bg-primary/15 text-primary font-medium"
                         : "text-muted-foreground hover:bg-secondary hover:text-foreground"
                     )}
                   >
@@ -237,7 +286,7 @@ export function DesktopSidebar({ displayName }: { displayName: string }) {
                         className={cn(
                           "h-4 w-4 shrink-0",
                           active
-                            ? "text-[oklch(0.65_0.18_260)]"
+                            ? "text-primary"
                             : "text-muted-foreground group-hover:text-foreground"
                         )}
                       />
@@ -261,7 +310,7 @@ export function DesktopSidebar({ displayName }: { displayName: string }) {
                             className={cn(
                               "block px-2.5 py-[6px] rounded-md text-[12px] transition-all",
                               childActive
-                                ? "bg-[oklch(0.65_0.18_260/0.12)] text-[oklch(0.75_0.15_260)] font-medium"
+                                ? "bg-primary/15 text-primary font-medium"
                                 : "text-muted-foreground hover:bg-secondary hover:text-foreground"
                             )}
                           >
@@ -284,7 +333,7 @@ export function DesktopSidebar({ displayName }: { displayName: string }) {
                   "flex items-center gap-2.5 px-2.5 py-[7px] rounded-md text-[13px] transition-all group",
                   collapsed && "justify-center",
                   active
-                    ? "bg-[oklch(0.65_0.18_260/0.12)] text-[oklch(0.75_0.15_260)] font-medium"
+                    ? "bg-primary/15 text-primary font-medium"
                     : "text-muted-foreground hover:bg-secondary hover:text-foreground"
                 )}
               >
@@ -292,7 +341,7 @@ export function DesktopSidebar({ displayName }: { displayName: string }) {
                   className={cn(
                     "h-4 w-4 shrink-0",
                     active
-                      ? "text-[oklch(0.65_0.18_260)]"
+                      ? "text-primary"
                       : "text-muted-foreground group-hover:text-foreground"
                   )}
                 />
@@ -301,14 +350,6 @@ export function DesktopSidebar({ displayName }: { displayName: string }) {
             );
           })}
         </nav>
-
-        {/* Toggle button */}
-        <button
-          onClick={toggleCollapsed}
-          className="w-full flex items-center justify-center h-10 border-t border-border/50 text-muted-foreground hover:text-foreground transition-colors"
-        >
-          {collapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
-        </button>
       </div>
     </aside>
   );

@@ -23,6 +23,9 @@ import { Separator } from "@/components/ui/separator";
 import { toast } from "sonner";
 import { Download, BarChart3, Users, TrendingUp } from "lucide-react";
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid } from "recharts";
+import { useChartTheme } from "@/lib/use-chart-theme";
+import { useLang } from "@/lib/i18n";
+import { translateCommodity } from "@/lib/translate-helpers";
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
@@ -59,13 +62,6 @@ interface CustomerRow {
 }
 
 type PeriodKey = "week" | "month" | "quarter" | "all";
-
-const PERIOD_LABELS: Record<PeriodKey, string> = {
-  week: "Minggu Ini",
-  month: "Bulan Ini",
-  quarter: "3 Bulan",
-  all: "Semua",
-};
 
 /* ------------------------------------------------------------------ */
 /*  Helpers                                                            */
@@ -136,6 +132,14 @@ function getPeriodStart(period: PeriodKey): Date | null {
 
 export default function SalesReportPage() {
   const supabase = createClient();
+  const chartTheme = useChartTheme();
+  const { t, lang } = useLang();
+  const PERIOD_LABELS: Record<PeriodKey, string> = {
+    week: t("sales.period_week"),
+    month: t("sales.period_month"),
+    quarter: t("sales.period_quarter"),
+    all: t("sales.period_all"),
+  };
 
   /* ---------- data state ---------- */
   const [orders, setOrders] = useState<SalesOrder[]>([]);
@@ -340,7 +344,7 @@ export default function SalesReportPage() {
       const sold = soldEntry?.sold ?? 0;
       const name = soldEntry?.name ?? harvests.find((h) => h.crop_catalog_id === cropId)?.crop_catalog?.name_id ?? "-";
       const gap = produced - sold;
-      const margin = gap >= 0 ? `+${gap.toFixed(2)} kg surplus` : `${gap.toFixed(2)} kg defisit`;
+      const margin = gap >= 0 ? `+${gap.toFixed(2)} ${t("sales.surplus")}` : `${gap.toFixed(2)} ${t("sales.deficit")}`;
       result.push({ name, produced: Number(produced.toFixed(2)), sold: Number(sold.toFixed(2)), gap: Number(gap.toFixed(2)), margin });
     }
 
@@ -366,8 +370,8 @@ export default function SalesReportPage() {
 
     const dateStr = new Date().toISOString().slice(0, 10);
     downloadCSV(rows, `laporan-penjualan-${dateStr}.csv`);
-    toast.success("CSV berhasil diekspor");
-  }, [cropRevenue, totalRevenue]);
+    toast.success(t("sales.csv_exported"));
+  }, [cropRevenue, totalRevenue, t]);
 
   /* ---------------------------------------------------------------- */
   /*  Stat card component                                             */
@@ -389,7 +393,7 @@ export default function SalesReportPage() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-lg font-semibold text-foreground">Laporan Penjualan</h1>
+        <h1 className="text-lg font-semibold text-foreground">{t("sales.report_title")}</h1>
         <Button
           variant="outline"
           className="h-9 text-[13px]"
@@ -397,7 +401,7 @@ export default function SalesReportPage() {
           disabled={cropRevenue.length === 0}
         >
           <Download className="w-4 h-4 mr-1.5" />
-          Ekspor CSV
+          {t("sales.export_csv")}
         </Button>
       </div>
 
@@ -420,7 +424,7 @@ export default function SalesReportPage() {
       {loading && (
         <Card className="rounded-xl border border-border/40 bg-card">
           <CardContent className="py-12 text-center text-muted-foreground">
-            Memuat data laporan...
+            {t("sales.loading_report")}
           </CardContent>
         </Card>
       )}
@@ -429,11 +433,11 @@ export default function SalesReportPage() {
         <div className="space-y-6">
           {/* Section 1: Revenue Summary */}
           <div>
-            <h2 className="text-[14px] font-semibold text-foreground mb-3">Revenue Summary</h2>
+            <h2 className="text-[14px] font-semibold text-foreground mb-3">{t("sales.revenue_summary")}</h2>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              <StatCard label="Total Revenue" value={fmtCurrency.format(totalRevenue)} />
-              <StatCard label="Jumlah Order" value={String(orderCount)} />
-              <StatCard label="Rata-rata Order" value={fmtCurrency.format(avgOrderValue)} />
+              <StatCard label={t("sales.total_revenue")} value={fmtCurrency.format(totalRevenue)} />
+              <StatCard label={t("sales.order_count")} value={String(orderCount)} />
+              <StatCard label={t("sales.avg_order")} value={fmtCurrency.format(avgOrderValue)} />
             </div>
           </div>
 
@@ -443,7 +447,7 @@ export default function SalesReportPage() {
           <div>
             <h2 className="text-[14px] font-semibold text-foreground mb-3 flex items-center gap-2">
               <TrendingUp className="size-4" />
-              Trend Penjualan (30 Hari)
+              {t("sales.trend_30d")}
             </h2>
             <div className="rounded-xl border border-border/40 bg-card p-4">
               <ResponsiveContainer width="100%" height={200}>
@@ -454,11 +458,11 @@ export default function SalesReportPage() {
                       <stop offset="100%" stopColor="#638cff" stopOpacity={0} />
                     </linearGradient>
                   </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#2a2f3a" />
-                  <XAxis dataKey="date" tick={{ fontSize: 10, fill: '#8a8f98' }} axisLine={false} tickLine={false} />
-                  <YAxis tick={{ fontSize: 10, fill: '#8a8f98' }} axisLine={false} tickLine={false} tickFormatter={(v) => `${(v/1000).toFixed(0)}k`} />
+                  <CartesianGrid strokeDasharray="3 3" stroke={chartTheme.grid} />
+                  <XAxis dataKey="date" tick={{ fontSize: 10, fill: chartTheme.axis }} axisLine={false} tickLine={false} />
+                  <YAxis tick={{ fontSize: 10, fill: chartTheme.axis }} axisLine={false} tickLine={false} tickFormatter={(v) => `${(v/1000).toFixed(0)}k`} />
                   <Tooltip
-                    contentStyle={{ backgroundColor: '#161b22', border: '1px solid #2a2f3a', borderRadius: '8px', fontSize: '12px', color: '#f7f8f8' }}
+                    contentStyle={chartTheme.tooltip}
                     formatter={(v) => [fmtCurrency.format(Number(v)), 'Revenue']}
                   />
                   <Area type="monotone" dataKey="revenue" stroke="#638cff" strokeWidth={2} fill="url(#reportRevenueGrad)" dot={{ fill: '#638cff', r: 3 }} />
@@ -473,19 +477,19 @@ export default function SalesReportPage() {
           <div>
             <h2 className="text-[14px] font-semibold text-foreground mb-3 flex items-center gap-2">
               <Users className="size-4" />
-              Retensi Pelanggan
+              {t("sales.customer_retention")}
             </h2>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div className="rounded-lg border border-border/40 bg-card p-4">
-                <p className="text-xs text-muted-foreground">Pelanggan Aktif (30 hari)</p>
+                <p className="text-xs text-muted-foreground">{t("sales.active_customers_30d")}</p>
                 <p className="text-2xl font-bold mt-1 text-emerald-400">{customerRetention.active}</p>
               </div>
               <div className="rounded-lg border border-border/40 bg-card p-4">
-                <p className="text-xs text-muted-foreground">Pelanggan Tidak Aktif</p>
+                <p className="text-xs text-muted-foreground">{t("sales.inactive_customers")}</p>
                 <p className="text-2xl font-bold mt-1 text-amber-400">{customerRetention.inactive}</p>
               </div>
               <div className="rounded-lg border border-border/40 bg-card p-4">
-                <p className="text-xs text-muted-foreground">Pelanggan Baru (30 hari)</p>
+                <p className="text-xs text-muted-foreground">{t("sales.new_customers_30d")}</p>
                 <p className="text-2xl font-bold mt-1 text-sky-400">{customerRetention.newCustomers}</p>
               </div>
             </div>
@@ -495,22 +499,22 @@ export default function SalesReportPage() {
 
           {/* Section 2: Revenue per Komoditas */}
           <div>
-            <h2 className="text-[14px] font-semibold text-foreground mb-3">Revenue per Komoditas</h2>
+            <h2 className="text-[14px] font-semibold text-foreground mb-3">{t("sales.revenue_per_crop")}</h2>
             {cropRevenue.length > 0 ? (
               <div className="rounded-xl border border-border/40 bg-card overflow-hidden">
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead className="text-[12px] text-muted-foreground">Komoditas</TableHead>
-                      <TableHead className="text-[12px] text-muted-foreground text-right">Qty Terjual (kg)</TableHead>
-                      <TableHead className="text-[12px] text-muted-foreground text-right">Revenue</TableHead>
-                      <TableHead className="text-[12px] text-muted-foreground text-right">% Total</TableHead>
+                      <TableHead className="text-[12px] text-muted-foreground">{t("sales.commodity")}</TableHead>
+                      <TableHead className="text-[12px] text-muted-foreground text-right">{t("sales.col_qty_sold")}</TableHead>
+                      <TableHead className="text-[12px] text-muted-foreground text-right">{t("sales.col_revenue")}</TableHead>
+                      <TableHead className="text-[12px] text-muted-foreground text-right">{t("sales.col_pct_total")}</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {cropRevenue.map((c, idx) => (
                       <TableRow key={idx}>
-                        <TableCell className="text-[13px]">{c.name}</TableCell>
+                        <TableCell className="text-[13px]">{translateCommodity(c.name, lang)}</TableCell>
                         <TableCell className="text-[13px] text-right">{c.qty.toFixed(2)}</TableCell>
                         <TableCell className="text-[13px] text-right font-medium">{fmtCurrency.format(c.revenue)}</TableCell>
                         <TableCell className="text-[13px] text-right">
@@ -524,7 +528,7 @@ export default function SalesReportPage() {
             ) : (
               <Card className="rounded-xl border border-border/40 bg-card">
                 <CardContent className="py-8 text-center text-sm text-muted-foreground">
-                  Belum ada data penjualan untuk periode ini.
+                  {t("sales.no_period_sales")}
                 </CardContent>
               </Card>
             )}
@@ -534,16 +538,16 @@ export default function SalesReportPage() {
 
           {/* Section 3: Revenue per Pelanggan */}
           <div>
-            <h2 className="text-[14px] font-semibold text-foreground mb-3">Revenue per Pelanggan</h2>
+            <h2 className="text-[14px] font-semibold text-foreground mb-3">{t("sales.revenue_per_customer")}</h2>
             {customerRevenue.length > 0 ? (
               <div className="rounded-xl border border-border/40 bg-card overflow-hidden">
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead className="text-[12px] text-muted-foreground">Pelanggan</TableHead>
-                      <TableHead className="text-[12px] text-muted-foreground">Tipe</TableHead>
-                      <TableHead className="text-[12px] text-muted-foreground text-right">Jumlah Order</TableHead>
-                      <TableHead className="text-[12px] text-muted-foreground text-right">Total Revenue</TableHead>
+                      <TableHead className="text-[12px] text-muted-foreground">{t("sales.col_customer")}</TableHead>
+                      <TableHead className="text-[12px] text-muted-foreground">{t("sales.col_type")}</TableHead>
+                      <TableHead className="text-[12px] text-muted-foreground text-right">{t("sales.col_order_count")}</TableHead>
+                      <TableHead className="text-[12px] text-muted-foreground text-right">{t("sales.col_total_revenue")}</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -565,7 +569,7 @@ export default function SalesReportPage() {
             ) : (
               <Card className="rounded-xl border border-border/40 bg-card">
                 <CardContent className="py-8 text-center text-sm text-muted-foreground">
-                  Belum ada data pelanggan untuk periode ini.
+                  {t("sales.no_period_customers")}
                 </CardContent>
               </Card>
             )}
@@ -575,23 +579,23 @@ export default function SalesReportPage() {
 
           {/* Section 4: Produksi vs Penjualan (with Margin) */}
           <div>
-            <h2 className="text-[14px] font-semibold text-foreground mb-3">Produksi vs Penjualan</h2>
+            <h2 className="text-[14px] font-semibold text-foreground mb-3">{t("sales.prod_vs_sales")}</h2>
             {prodVsSales.length > 0 ? (
               <div className="rounded-xl border border-border/40 bg-card overflow-hidden">
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead className="text-[12px] text-muted-foreground">Komoditas</TableHead>
-                      <TableHead className="text-[12px] text-muted-foreground text-right">Produksi (kg)</TableHead>
-                      <TableHead className="text-[12px] text-muted-foreground text-right">Terjual (kg)</TableHead>
-                      <TableHead className="text-[12px] text-muted-foreground text-right">Selisih (kg)</TableHead>
-                      <TableHead className="text-[12px] text-muted-foreground text-right">Margin</TableHead>
+                      <TableHead className="text-[12px] text-muted-foreground">{t("sales.col_commodity")}</TableHead>
+                      <TableHead className="text-[12px] text-muted-foreground text-right">{t("sales.col_produced")}</TableHead>
+                      <TableHead className="text-[12px] text-muted-foreground text-right">{t("sales.col_sold")}</TableHead>
+                      <TableHead className="text-[12px] text-muted-foreground text-right">{t("sales.col_gap")}</TableHead>
+                      <TableHead className="text-[12px] text-muted-foreground text-right">{t("sales.col_margin")}</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {prodVsSales.map((c, idx) => (
                       <TableRow key={idx}>
-                        <TableCell className="text-[13px]">{c.name}</TableCell>
+                        <TableCell className="text-[13px]">{translateCommodity(c.name, lang)}</TableCell>
                         <TableCell className="text-[13px] text-right">{c.produced.toFixed(2)}</TableCell>
                         <TableCell className="text-[13px] text-right">{c.sold.toFixed(2)}</TableCell>
                         <TableCell
@@ -618,7 +622,7 @@ export default function SalesReportPage() {
               <Card className="rounded-xl border border-border/40 bg-card">
                 <CardContent className="py-8 text-center">
                   <BarChart3 className="w-10 h-10 text-muted-foreground/40 mx-auto mb-3" />
-                  <p className="text-sm text-muted-foreground">Belum ada data produksi atau penjualan.</p>
+                  <p className="text-sm text-muted-foreground">{t("sales.no_prod_sales")}</p>
                 </CardContent>
               </Card>
             )}

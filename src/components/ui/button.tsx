@@ -1,3 +1,4 @@
+import * as React from "react"
 import { Button as ButtonPrimitive } from "@base-ui/react/button"
 import { cva, type VariantProps } from "class-variance-authority"
 
@@ -40,19 +41,44 @@ const buttonVariants = cva(
   }
 )
 
+type ButtonProps = ButtonPrimitive.Props &
+  VariantProps<typeof buttonVariants> & {
+    /**
+     * When true, render the button as its single child element (typically
+     * a `<Link>`) while still applying the button's class + data-slot.
+     * Under the hood this forwards to base-ui's `render` prop.
+     */
+    asChild?: boolean
+  }
+
 function Button({
   className,
   variant = "default",
   size = "default",
+  asChild = false,
+  render,
+  children,
   ...props
-}: ButtonPrimitive.Props & VariantProps<typeof buttonVariants>) {
+}: ButtonProps) {
+  const mergedClass = cn(buttonVariants({ variant, size, className }))
+
+  // `asChild` — pass the single child element to base-ui's `render` so the
+  // child becomes the root DOM node (e.g. `<Link>` stays as `<a>`). Prefer
+  // an explicit `render` prop if the caller supplies one.
+  const resolvedRender = asChild && React.isValidElement(children) ? children : render
+
   return (
     <ButtonPrimitive
       data-slot="button"
-      className={cn(buttonVariants({ variant, size, className }))}
+      className={mergedClass}
+      render={resolvedRender}
       {...props}
-    />
+    >
+      {asChild ? undefined : children}
+    </ButtonPrimitive>
   )
 }
+
+export type { ButtonProps }
 
 export { Button, buttonVariants }

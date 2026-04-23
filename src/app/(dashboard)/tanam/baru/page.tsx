@@ -14,6 +14,8 @@ import { toast } from "sonner";
 import { Camera, X } from "lucide-react";
 import type { CropCatalog, Hole } from "@/lib/types/database";
 import { RACK_CONFIG } from "@/lib/constants";
+import { useLang } from "@/lib/i18n";
+import { translateCommodity } from "@/lib/translate-helpers";
 
 interface PhotoEntry {
   dataUrl: string;
@@ -24,6 +26,7 @@ export default function NewPlantingPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const preselectedHoleId = searchParams.get("hole");
+  const { t, lang } = useLang();
 
   const supabase = createClient();
   const [crops, setCrops] = useState<CropCatalog[]>([]);
@@ -57,14 +60,14 @@ export default function NewPlantingPage() {
   function getCropDisplayName() {
     if (!cropId) return undefined;
     const crop = crops.find((c) => String(c.id) === cropId);
-    return crop ? `${crop.name_id} (${crop.grow_duration_days} hari)` : undefined;
+    return crop ? `${translateCommodity(crop.name_id, lang)} (${crop.grow_duration_days} ${t("unit.day")})` : undefined;
   }
 
   function getSelectionModeDisplay() {
     const labels: Record<string, string> = {
-      individual: "Lubang Individual (ID)",
-      lane: "Satu Lajur Penuh",
-      tier: "Satu Tingkat Penuh",
+      individual: t("cult.hole_individual"),
+      lane: t("cult.lane_full"),
+      tier: t("cult.tier_full"),
     };
     return labels[selectionMode];
   }
@@ -88,11 +91,11 @@ export default function NewPlantingPage() {
   // Validation
   function validate(): boolean {
     const errs: Record<string, string> = {};
-    if (!cropId) errs.crop = "Pilih komoditas terlebih dahulu";
+    if (!cropId) errs.crop = t("cult.commodity_first");
     if (selectionMode === "individual" && !individualHoleIds.trim()) {
-      errs.holes = "Masukkan ID lubang";
+      errs.holes = t("cult.input_hole_id");
     }
-    if (photos.length === 0) errs.photos = "Ambil minimal 1 foto sebagai bukti";
+    if (photos.length === 0) errs.photos = t("cult.min_one_photo_proof");
     setErrors(errs);
     return Object.keys(errs).length === 0;
   }
@@ -126,7 +129,7 @@ export default function NewPlantingPage() {
       }
 
       if (holesToPlant.length === 0) {
-        toast.error("Tidak ada lubang kosong yang sesuai pilihan");
+        toast.error(t("cult.no_empty_holes"));
         setLoading(false);
         return;
       }
@@ -143,7 +146,7 @@ export default function NewPlantingPage() {
         .single();
 
       if (batchError || !batch) {
-        toast.error("Gagal membuat batch: " + (batchError?.message ?? ""));
+        toast.error(t("cult.batch_create_failed") + ": " + (batchError?.message ?? ""));
         setLoading(false);
         return;
       }
@@ -165,7 +168,7 @@ export default function NewPlantingPage() {
         .from("planting_cycles").insert(cycleInserts).select();
 
       if (cycleError) {
-        toast.error("Gagal membuat siklus tanam: " + cycleError.message);
+        toast.error(t("cult.cycle_create_failed") + ": " + cycleError.message);
         setLoading(false);
         return;
       }
@@ -178,34 +181,34 @@ export default function NewPlantingPage() {
         }
       }
 
-      toast.success(`Berhasil menanam ${holesToPlant.length} lubang — ${batch.batch_code}`);
+      toast.success(`${t("cult.planted_n_holes")} ${holesToPlant.length} ${t("unit.holes")} — ${batch.batch_code}`);
       router.push("/tanam");
       router.refresh();
     } catch {
-      toast.error("Terjadi kesalahan");
+      toast.error(t("toast.error_generic"));
     } finally {
       setLoading(false);
     }
   }
 
   return (
-    <FloatingForm title="Tanam Baru" backHref="/tanam">
+    <FloatingForm title={t("cult.new_plant")} backHref="/tanam">
       <form onSubmit={handleSubmit} className="space-y-4">
         {/* Crop selection */}
         <div className="space-y-2">
           <Label className="text-[13px] text-muted-foreground">
-            Komoditas <span className="text-destructive">*</span>
+            {t("cult.commodity")} <span className="text-destructive">*</span>
           </Label>
           <Select value={cropId} onValueChange={(v) => { if (v !== null) { setCropId(v); setErrors((e) => ({ ...e, crop: "" })); } }}>
             <SelectTrigger className={`h-11 bg-secondary border-border/50 ${errors.crop ? "border-destructive" : ""}`}>
-              <SelectValue placeholder="Pilih komoditas...">
+              <SelectValue placeholder={`${t("common.select")} ${t("cult.commodity").toLowerCase()}...`}>
                 {getCropDisplayName()}
               </SelectValue>
             </SelectTrigger>
             <SelectContent>
               {crops.map((crop) => (
                 <SelectItem key={crop.id} value={String(crop.id)}>
-                  {crop.name_id} ({crop.grow_duration_days} hari)
+                  {translateCommodity(crop.name_id, lang)} ({crop.grow_duration_days} {t("unit.day")})
                 </SelectItem>
               ))}
             </SelectContent>
@@ -216,16 +219,16 @@ export default function NewPlantingPage() {
         {/* Selection mode */}
         <div className="space-y-2">
           <Label className="text-[13px] text-muted-foreground">
-            Mode Pemilihan Lubang <span className="text-destructive">*</span>
+            {t("cult.hole_selection_mode")} <span className="text-destructive">*</span>
           </Label>
           <Select value={selectionMode} onValueChange={(v) => v !== null && setSelectionMode(v as "individual" | "lane" | "tier")}>
             <SelectTrigger className="h-11 bg-secondary border-border/50">
               <SelectValue>{getSelectionModeDisplay()}</SelectValue>
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="individual">Lubang Individual (ID)</SelectItem>
-              <SelectItem value="lane">Satu Lajur Penuh</SelectItem>
-              <SelectItem value="tier">Satu Tingkat Penuh</SelectItem>
+              <SelectItem value="individual">{t("cult.hole_individual")}</SelectItem>
+              <SelectItem value="lane">{t("cult.lane_full")}</SelectItem>
+              <SelectItem value="tier">{t("cult.tier_full")}</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -234,11 +237,11 @@ export default function NewPlantingPage() {
         {selectionMode === "individual" && (
           <div className="space-y-2">
             <Label className="text-[13px] text-muted-foreground">
-              ID Lubang (pisahkan dengan koma) <span className="text-destructive">*</span>
+              {t("cult.hole_id_comma")} <span className="text-destructive">*</span>
             </Label>
             <Input
               className={`h-11 bg-secondary border-border/50 ${errors.holes ? "border-destructive" : ""}`}
-              placeholder="Contoh: 1, 2, 3"
+              placeholder={t("cult.hole_id_example")}
               value={individualHoleIds}
               onChange={(e) => { setIndividualHoleIds(e.target.value); setErrors((er) => ({ ...er, holes: "" })); }}
             />
@@ -249,24 +252,24 @@ export default function NewPlantingPage() {
         {(selectionMode === "lane" || selectionMode === "tier") && (
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-2">
-              <Label className="text-[13px] text-muted-foreground">Rak</Label>
+              <Label className="text-[13px] text-muted-foreground">{t("cult.rack")}</Label>
               <Select value={selectedRack} onValueChange={(v) => v !== null && setSelectedRack(v)}>
                 <SelectTrigger className="h-11 bg-secondary border-border/50">
-                  <SelectValue>{`Rak ${selectedRack}`}</SelectValue>
+                  <SelectValue>{`${t("cult.rack")} ${selectedRack}`}</SelectValue>
                 </SelectTrigger>
                 <SelectContent>
-                  {RACK_CONFIG.racks.map((r) => (<SelectItem key={r} value={r}>Rak {r}</SelectItem>))}
+                  {RACK_CONFIG.racks.map((r) => (<SelectItem key={r} value={r}>{t("cult.rack")} {r}</SelectItem>))}
                 </SelectContent>
               </Select>
             </div>
             <div className="space-y-2">
-              <Label className="text-[13px] text-muted-foreground">Tingkat</Label>
+              <Label className="text-[13px] text-muted-foreground">{t("cult.tier")}</Label>
               <Select value={selectedTier} onValueChange={(v) => v !== null && setSelectedTier(v)}>
                 <SelectTrigger className="h-11 bg-secondary border-border/50">
-                  <SelectValue>{`Tingkat ${selectedTier}`}</SelectValue>
+                  <SelectValue>{`${t("cult.tier")} ${selectedTier}`}</SelectValue>
                 </SelectTrigger>
                 <SelectContent>
-                  {RACK_CONFIG.tiers.map((t) => (<SelectItem key={t} value={String(t)}>Tingkat {t}</SelectItem>))}
+                  {RACK_CONFIG.tiers.map((tier) => (<SelectItem key={tier} value={String(tier)}>{t("cult.tier")} {tier}</SelectItem>))}
                 </SelectContent>
               </Select>
             </div>
@@ -275,13 +278,13 @@ export default function NewPlantingPage() {
 
         {selectionMode === "lane" && (
           <div className="space-y-2">
-            <Label className="text-[13px] text-muted-foreground">Lajur</Label>
+            <Label className="text-[13px] text-muted-foreground">{t("cult.lane")}</Label>
             <Select value={selectedLane} onValueChange={(v) => v !== null && setSelectedLane(v)}>
               <SelectTrigger className="h-11 bg-secondary border-border/50">
-                <SelectValue>{`Lajur ${selectedLane}`}</SelectValue>
+                <SelectValue>{`${t("cult.lane")} ${selectedLane}`}</SelectValue>
               </SelectTrigger>
               <SelectContent>
-                {RACK_CONFIG.lanes.map((l) => (<SelectItem key={l} value={String(l)}>Lajur {l}</SelectItem>))}
+                {RACK_CONFIG.lanes.map((l) => (<SelectItem key={l} value={String(l)}>{t("cult.lane")} {l}</SelectItem>))}
               </SelectContent>
             </Select>
           </div>
@@ -289,10 +292,10 @@ export default function NewPlantingPage() {
 
         {/* Notes */}
         <div className="space-y-2">
-          <Label className="text-[13px] text-muted-foreground">Catatan (opsional)</Label>
+          <Label className="text-[13px] text-muted-foreground">{t("common.notes_optional")}</Label>
           <Textarea
             className="bg-secondary border-border/50 text-foreground placeholder:text-muted-foreground/50"
-            placeholder="Catatan tambahan..."
+            placeholder={t("cult.notes_placeholder")}
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
           />
@@ -303,7 +306,7 @@ export default function NewPlantingPage() {
         <div>
           <div className="flex items-center justify-between mb-2">
             <Label className="text-[13px] text-muted-foreground">
-              Foto Dokumentasi <span className="text-destructive">*</span>
+              {t("cult.photo_documentation")} <span className="text-destructive">*</span>
             </Label>
             <Button
               type="button"
@@ -313,7 +316,7 @@ export default function NewPlantingPage() {
               onClick={() => fileInputRef.current?.click()}
             >
               <Camera className="h-3 w-3 mr-1" />
-              Ambil Foto
+              {t("cult.take_photo")}
             </Button>
           </div>
           <input ref={fileInputRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={handlePhotoCapture} />
@@ -321,7 +324,7 @@ export default function NewPlantingPage() {
             <div className="grid grid-cols-4 gap-2">
               {photos.map((photo, i) => (
                 <div key={i} className="relative rounded-lg overflow-hidden bg-secondary aspect-square group">
-                  <img src={photo.dataUrl} alt={`Foto ${i + 1}`} className="w-full h-full object-cover" />
+                  <img src={photo.dataUrl} alt={`${t("cult.photo")} ${i + 1}`} className="w-full h-full object-cover" />
                   <button
                     type="button"
                     onClick={() => removePhoto(i)}
@@ -334,13 +337,13 @@ export default function NewPlantingPage() {
             </div>
           ) : (
             <p className={`text-[11px] ${errors.photos ? "text-destructive" : "text-muted-foreground"}`}>
-              {errors.photos || "Belum ada foto. Ambil minimal 1 foto sebagai bukti."}
+              {errors.photos || t("cult.min_one_photo_proof")}
             </p>
           )}
         </div>
 
-        <Button type="submit" className="w-full h-11 bg-[oklch(0.65_0.18_260)] hover:bg-[oklch(0.60_0.20_260)] text-white" disabled={loading}>
-          {loading ? "Memproses..." : "Mulai Tanam"}
+        <Button type="submit" className="w-full h-11 bg-primary hover:bg-primary/90 text-white" disabled={loading}>
+          {loading ? t("common.processing") : t("cult.start_planting")}
         </Button>
       </form>
     </FloatingForm>

@@ -66,7 +66,7 @@ export function TopNavbar({ displayName, notifCount = 0 }: TopNavbarProps) {
             <Settings className="h-4 w-4" />
           </Button>
           {settingsOpen && (
-            <div className="absolute right-0 top-full mt-2 w-56 rounded-lg border border-border/50 bg-card shadow-xl p-3 space-y-3 z-50">
+            <div className="absolute right-0 top-full mt-2 w-[280px] rounded-lg border border-border/50 bg-card shadow-xl p-3 space-y-3 z-50">
               <div className="space-y-1.5">
                 <span className="text-xs font-medium text-muted-foreground">{t("settings.theme")}</span>
                 <div className="flex gap-1">
@@ -75,8 +75,18 @@ export function TopNavbar({ displayName, notifCount = 0 }: TopNavbarProps) {
                     { key: "dark", icon: Moon, label: t("settings.dark") },
                     { key: "system", icon: Monitor, label: t("settings.system") },
                   ].map(({ key, icon: Icon, label }) => (
-                    <Button key={key} variant="ghost" size="sm" className={cn("h-8 flex-1 gap-1.5 text-xs", theme === key && "bg-secondary")} onClick={() => setTheme(key)}>
-                      <Icon className="h-3.5 w-3.5" /> {label}
+                    <Button
+                      key={key}
+                      variant="ghost"
+                      size="sm"
+                      className={cn(
+                        "h-8 flex-1 min-w-0 gap-1 px-1.5 text-[11px]",
+                        theme === key && "bg-secondary"
+                      )}
+                      onClick={() => setTheme(key)}
+                    >
+                      <Icon className="h-3.5 w-3.5 shrink-0" />
+                      <span className="truncate">{label}</span>
                     </Button>
                   ))}
                 </div>
@@ -84,9 +94,21 @@ export function TopNavbar({ displayName, notifCount = 0 }: TopNavbarProps) {
               <div className="space-y-1.5">
                 <span className="text-xs font-medium text-muted-foreground">{t("settings.language")}</span>
                 <div className="flex gap-1">
-                  {[{ key: "id" as const, label: "Bahasa Indonesia" }, { key: "en" as const, label: "English" }].map(({ key, label }) => (
-                    <Button key={key} variant="ghost" size="sm" className={cn("h-8 flex-1 text-xs", lang === key && "bg-secondary")} onClick={() => setLang(key)}>
-                      {label}
+                  {[
+                    { key: "id" as const, label: t("settings.indonesia") },
+                    { key: "en" as const, label: t("settings.english") },
+                  ].map(({ key, label }) => (
+                    <Button
+                      key={key}
+                      variant="ghost"
+                      size="sm"
+                      className={cn(
+                        "h-8 flex-1 min-w-0 px-1.5 text-[11px]",
+                        lang === key && "bg-secondary"
+                      )}
+                      onClick={() => setLang(key)}
+                    >
+                      <span className="truncate">{label}</span>
                     </Button>
                   ))}
                 </div>
@@ -107,7 +129,7 @@ export function TopNavbar({ displayName, notifCount = 0 }: TopNavbarProps) {
             <div className="absolute right-0 top-full mt-2 w-48 rounded-lg border border-border/50 bg-card shadow-xl z-50">
               <div className="p-3 border-b border-border/30">
                 <p className="text-[13px] font-medium text-foreground">{displayName}</p>
-                <p className="text-[11px] text-muted-foreground">Plant Factory ERP</p>
+                <p className="text-[11px] text-muted-foreground">Agrosphere ERP</p>
               </div>
               <div className="p-1.5">
                 <button

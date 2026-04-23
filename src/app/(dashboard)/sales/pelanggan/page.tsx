@@ -41,12 +41,13 @@ import {
   MessageCircle,
 } from "lucide-react";
 import type { Customer } from "@/lib/types/database";
+import { useLang } from "@/lib/i18n";
 
 const CUSTOMER_TYPES = [
-  { value: "restoran", label: "Restoran" },
-  { value: "retail", label: "Retail" },
-  { value: "distributor", label: "Distributor" },
-  { value: "individu", label: "Individu" },
+  { value: "restoran", labelKey: "sales.cust_restoran" },
+  { value: "retail", labelKey: "sales.cust_retail" },
+  { value: "distributor", labelKey: "sales.cust_distributor" },
+  { value: "individu", labelKey: "sales.cust_individu" },
 ];
 
 const TYPE_COLORS: Record<string, string> = {
@@ -56,12 +57,12 @@ const TYPE_COLORS: Record<string, string> = {
   individu: "bg-emerald-500/20 text-emerald-400",
 };
 
-const ORDER_STATUS: Record<string, { label: string; color: string }> = {
-  pending: { label: "Menunggu", color: "bg-amber-500/20 text-amber-400" },
-  confirmed: { label: "Dikonfirmasi", color: "bg-sky-500/20 text-sky-400" },
-  delivered: { label: "Dikirim", color: "bg-emerald-500/20 text-emerald-400" },
-  paid: { label: "Lunas", color: "bg-green-500/20 text-green-400" },
-  cancelled: { label: "Dibatalkan", color: "bg-red-500/20 text-red-400" },
+const ORDER_STATUS_COLORS: Record<string, string> = {
+  pending: "bg-amber-500/20 text-amber-400",
+  confirmed: "bg-sky-500/20 text-sky-400",
+  delivered: "bg-emerald-500/20 text-emerald-400",
+  paid: "bg-green-500/20 text-green-400",
+  cancelled: "bg-red-500/20 text-red-400",
 };
 
 type CustomerOrder = {
@@ -85,6 +86,14 @@ type ViewMode = "list" | "grid";
 
 export default function PelangganPage() {
   const supabase = createClient();
+  const { t } = useLang();
+  const ORDER_STATUS_LABEL: Record<string, string> = {
+    pending: t("sales.menunggu"),
+    confirmed: t("sales.dikonfirmasi"),
+    delivered: t("sales.dikirim"),
+    paid: t("sales.lunas"),
+    cancelled: t("sales.dibatalkan"),
+  };
 
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [loading, setLoading] = useState(true);
@@ -210,7 +219,7 @@ export default function PelangganPage() {
 
   async function handleSave() {
     if (!formName.trim()) {
-      toast.error("Nama pelanggan wajib diisi");
+      toast.error(t("sales.customer_required"));
       return;
     }
 
@@ -231,11 +240,11 @@ export default function PelangganPage() {
           .update(payload)
           .eq("id", selectedCustomer.id);
         if (error) throw error;
-        toast.success("Pelanggan berhasil diperbarui");
+        toast.success(t("sales.customer_updated"));
       } else {
         const { error } = await supabase.from("customers").insert(payload);
         if (error) throw error;
-        toast.success("Pelanggan berhasil ditambahkan");
+        toast.success(t("sales.customer_added"));
       }
 
       setFormOpen(false);
@@ -244,7 +253,7 @@ export default function PelangganPage() {
       await loadCustomers();
     } catch (err: unknown) {
       const message =
-        err instanceof Error ? err.message : "Gagal menyimpan data";
+        err instanceof Error ? err.message : t("sales.save_failed");
       toast.error(message);
     } finally {
       setSaving(false);
@@ -265,7 +274,7 @@ export default function PelangganPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64 text-muted-foreground text-sm">
-        Memuat data...
+        {t("common.loading")}
       </div>
     );
   }
@@ -275,18 +284,18 @@ export default function PelangganPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-lg font-semibold text-foreground">Pelanggan</h1>
+          <h1 className="text-lg font-semibold text-foreground">{t("sales.customers")}</h1>
           <p className="text-[13px] text-muted-foreground mt-0.5">
-            Kelola data pelanggan
+            {t("sales.manage_customers")}
           </p>
         </div>
         <Button
           size="sm"
-          className="h-9 bg-[oklch(0.65_0.18_260)] hover:bg-[oklch(0.60_0.20_260)] text-white text-[13px]"
+          className="h-9 bg-primary hover:bg-primary/90 text-white text-[13px]"
           onClick={openAddForm}
         >
           <Plus className="h-3.5 w-3.5 mr-1.5" />
-          Tambah Pelanggan
+          {t("sales.add_customer")}
         </Button>
       </div>
 
@@ -295,7 +304,7 @@ export default function PelangganPage() {
         <div className="relative flex-1 min-w-[200px] max-w-sm">
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
           <Input
-            placeholder="Cari nama, tipe, telepon..."
+            placeholder={t("sales.search_customer_ph")}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="h-9 pl-8 bg-secondary border-border/50 text-[12px]"
@@ -309,16 +318,16 @@ export default function PelangganPage() {
             <ArrowUpDown className="size-3.5 mr-1.5 text-muted-foreground" />
             <SelectValue>
               {sort === "name_asc"
-                ? "Nama A-Z"
+                ? t("sales.sort_name_az")
                 : sort === "newest"
-                  ? "Terbaru"
-                  : "Tipe"}
+                  ? t("sales.sort_newest")
+                  : t("sales.sort_type")}
             </SelectValue>
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="name_asc">Nama A-Z</SelectItem>
-            <SelectItem value="newest">Terbaru</SelectItem>
-            <SelectItem value="type">Tipe</SelectItem>
+            <SelectItem value="name_asc">{t("sales.sort_name_az")}</SelectItem>
+            <SelectItem value="newest">{t("sales.sort_newest")}</SelectItem>
+            <SelectItem value="type">{t("sales.sort_type")}</SelectItem>
           </SelectContent>
         </Select>
         <div className="flex rounded-lg border border-border/50 overflow-hidden">
@@ -341,7 +350,7 @@ export default function PelangganPage() {
       {filtered.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
           <Users className="size-10 mb-3 opacity-40" />
-          <p className="text-[13px]">Tidak ada pelanggan ditemukan.</p>
+          <p className="text-[13px]">{t("sales.no_customer_found")}</p>
         </div>
       ) : view === "list" ? (
         /* Table View */
@@ -350,22 +359,22 @@ export default function PelangganPage() {
             <TableHeader>
               <TableRow>
                 <TableHead className="text-[12px] text-muted-foreground">
-                  Nama
+                  {t("sales.col_name")}
                 </TableHead>
                 <TableHead className="text-[12px] text-muted-foreground">
-                  Tipe
+                  {t("sales.col_type")}
                 </TableHead>
                 <TableHead className="text-[12px] text-muted-foreground">
-                  Telepon
+                  {t("sales.col_phone")}
                 </TableHead>
                 <TableHead className="text-[12px] text-muted-foreground">
-                  Email
+                  {t("sales.col_email")}
                 </TableHead>
                 <TableHead className="text-[12px] text-muted-foreground">
-                  Alamat
+                  {t("sales.col_address")}
                 </TableHead>
                 <TableHead className="text-[12px] text-muted-foreground">
-                  Catatan
+                  {t("sales.col_notes")}
                 </TableHead>
               </TableRow>
             </TableHeader>
@@ -374,9 +383,10 @@ export default function PelangganPage() {
                 const typeColor =
                   TYPE_COLORS[c.type ?? ""] ?? "bg-zinc-500/20 text-zinc-400";
                 const typeLabel =
-                  CUSTOMER_TYPES.find((t) => t.value === c.type)?.label ??
-                  c.type ??
-                  "-";
+                  (() => {
+                    const ct = CUSTOMER_TYPES.find((x) => x.value === c.type);
+                    return ct ? t(ct.labelKey) : (c.type ?? "-");
+                  })();
                 return (
                   <TableRow
                     key={c.id}
@@ -417,10 +427,10 @@ export default function PelangganPage() {
           {filtered.map((c) => {
             const typeColor =
               TYPE_COLORS[c.type ?? ""] ?? "bg-zinc-500/20 text-zinc-400";
-            const typeLabel =
-              CUSTOMER_TYPES.find((t) => t.value === c.type)?.label ??
-              c.type ??
-              "-";
+            const typeLabel = (() => {
+              const ct = CUSTOMER_TYPES.find((x) => x.value === c.type);
+              return ct ? t(ct.labelKey) : (c.type ?? "-");
+            })();
             return (
               <div
                 key={c.id}
@@ -472,11 +482,10 @@ export default function PelangganPage() {
                       <Badge
                         className={`${TYPE_COLORS[selectedCustomer.type ?? ""] ?? "bg-zinc-500/20 text-zinc-400"} border-0 text-[11px]`}
                       >
-                        {CUSTOMER_TYPES.find(
-                          (t) => t.value === selectedCustomer.type
-                        )?.label ??
-                          selectedCustomer.type ??
-                          "-"}
+                        {(() => {
+                          const ct = CUSTOMER_TYPES.find((x) => x.value === selectedCustomer.type);
+                          return ct ? t(ct.labelKey) : (selectedCustomer.type ?? "-");
+                        })()}
                       </Badge>
                     </div>
                   </div>
@@ -517,7 +526,7 @@ export default function PelangganPage() {
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <Label className="text-[11px] text-muted-foreground">
-                      Telepon
+                      {t("sales.col_phone")}
                     </Label>
                     <div className="text-[13px]">
                       {selectedCustomer.phone ?? "-"}
@@ -525,7 +534,7 @@ export default function PelangganPage() {
                   </div>
                   <div>
                     <Label className="text-[11px] text-muted-foreground">
-                      Email
+                      {t("sales.col_email")}
                     </Label>
                     <div className="text-[13px]">
                       {selectedCustomer.email ?? "-"}
@@ -534,7 +543,7 @@ export default function PelangganPage() {
                 </div>
                 <div>
                   <Label className="text-[11px] text-muted-foreground">
-                    Alamat
+                    {t("sales.col_address")}
                   </Label>
                   <div className="text-[13px]">
                     {selectedCustomer.address ?? "-"}
@@ -542,7 +551,7 @@ export default function PelangganPage() {
                 </div>
                 <div>
                   <Label className="text-[11px] text-muted-foreground">
-                    Catatan
+                    {t("sales.col_notes")}
                   </Label>
                   <div className="text-[13px]">
                     {selectedCustomer.notes ?? "-"}
@@ -550,7 +559,7 @@ export default function PelangganPage() {
                 </div>
                 <div>
                   <Label className="text-[11px] text-muted-foreground">
-                    Ditambahkan
+                    {t("sales.added_on")}
                   </Label>
                   <div className="text-[13px]">
                     {new Date(selectedCustomer.created_at).toLocaleDateString(
@@ -569,12 +578,12 @@ export default function PelangganPage() {
                 {/* Order History Section */}
                 <div>
                   <h4 className="text-[13px] font-semibold text-foreground mb-3">
-                    Riwayat Order
+                    {t("sales.order_history")}
                   </h4>
 
                   {loadingOrders ? (
                     <p className="text-[12px] text-muted-foreground">
-                      Memuat riwayat order...
+                      {t("sales.loading_orders")}
                     </p>
                   ) : (
                     <>
@@ -582,7 +591,7 @@ export default function PelangganPage() {
                       <div className="grid grid-cols-2 gap-3 mb-3">
                         <div className="rounded-lg border border-border/30 bg-secondary/50 p-3">
                           <p className="text-[11px] text-muted-foreground">
-                            Total Spending
+                            {t("sales.total_spending")}
                           </p>
                           <p className="text-[14px] font-semibold mt-0.5">
                             {formatCurrency(totalSpending)}
@@ -590,7 +599,7 @@ export default function PelangganPage() {
                         </div>
                         <div className="rounded-lg border border-border/30 bg-secondary/50 p-3">
                           <p className="text-[11px] text-muted-foreground">
-                            Jumlah Order
+                            {t("sales.order_count")}
                           </p>
                           <p className="text-[14px] font-semibold mt-0.5">
                             {totalOrderCount}
@@ -602,14 +611,12 @@ export default function PelangganPage() {
                       {recentOrders.length > 0 ? (
                         <div>
                           <p className="text-[11px] text-muted-foreground mb-2">
-                            Order Terakhir
+                            {t("sales.last_orders")}
                           </p>
                           <div className="space-y-1">
                             {recentOrders.map((order) => {
-                              const statusInfo = ORDER_STATUS[order.status] ?? {
-                                label: order.status,
-                                color: "bg-zinc-500/20 text-zinc-400",
-                              };
+                              const statusColor = ORDER_STATUS_COLORS[order.status] ?? "bg-zinc-500/20 text-zinc-400";
+                              const statusLabel = ORDER_STATUS_LABEL[order.status] ?? order.status;
                               return (
                                 <div
                                   key={order.id}
@@ -629,9 +636,9 @@ export default function PelangganPage() {
                                       {formatCurrency(order.grand_total)}
                                     </span>
                                     <Badge
-                                      className={`${statusInfo.color} border-0 text-[10px]`}
+                                      className={`${statusColor} border-0 text-[10px]`}
                                     >
-                                      {statusInfo.label}
+                                      {statusLabel}
                                     </Badge>
                                   </div>
                                 </div>
@@ -641,7 +648,7 @@ export default function PelangganPage() {
                         </div>
                       ) : (
                         <p className="text-[12px] text-muted-foreground">
-                          Belum ada order.
+                          {t("sales.no_orders")}
                         </p>
                       )}
                     </>
@@ -652,7 +659,7 @@ export default function PelangganPage() {
 
                 {/* Pricing Note */}
                 <p className="text-[11px] text-muted-foreground italic">
-                  Diskon khusus dan harga spesial dapat diatur per order.
+                  {t("sales.pricing_note")}
                 </p>
               </div>
             </>
@@ -668,7 +675,7 @@ export default function PelangganPage() {
         >
           <DialogHeader className="p-4 pb-0">
             <DialogTitle>
-              {editing ? "Edit Pelanggan" : "Tambah Pelanggan"}
+              {editing ? t("sales.edit_customer") : t("sales.add_customer")}
             </DialogTitle>
           </DialogHeader>
 
@@ -677,31 +684,33 @@ export default function PelangganPage() {
           <div className="px-4 pb-4 space-y-3">
             <div>
               <Label className="text-[11px] text-muted-foreground">
-                Nama <span className="text-red-400">*</span>
+                {t("sales.col_name")} <span className="text-red-400">*</span>
               </Label>
               <Input
                 value={formName}
                 onChange={(e) => setFormName(e.target.value)}
-                placeholder="Nama pelanggan"
+                placeholder={t("sales.customer_name_ph")}
                 className="h-9 bg-secondary border-border/50 text-[12px]"
               />
             </div>
             <div>
-              <Label className="text-[11px] text-muted-foreground">Tipe</Label>
+              <Label className="text-[11px] text-muted-foreground">{t("sales.col_type")}</Label>
               <Select
                 value={formType}
                 onValueChange={(v) => v !== null && setFormType(v)}
               >
                 <SelectTrigger className="h-9 bg-secondary border-border/50 text-[12px] w-full">
                   <SelectValue>
-                    {CUSTOMER_TYPES.find((t) => t.value === formType)?.label ??
-                      "Pilih tipe"}
+                    {(() => {
+                      const ct = CUSTOMER_TYPES.find((x) => x.value === formType);
+                      return ct ? t(ct.labelKey) : t("sales.select_type");
+                    })()}
                   </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
-                  {CUSTOMER_TYPES.map((t) => (
-                    <SelectItem key={t.value} value={t.value}>
-                      {t.label}
+                  {CUSTOMER_TYPES.map((ct) => (
+                    <SelectItem key={ct.value} value={ct.value}>
+                      {t(ct.labelKey)}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -710,7 +719,7 @@ export default function PelangganPage() {
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <Label className="text-[11px] text-muted-foreground">
-                  Telepon
+                  {t("sales.col_phone")}
                 </Label>
                 <Input
                   value={formPhone}
@@ -721,7 +730,7 @@ export default function PelangganPage() {
               </div>
               <div>
                 <Label className="text-[11px] text-muted-foreground">
-                  Email
+                  {t("sales.col_email")}
                 </Label>
                 <Input
                   value={formEmail}
@@ -733,23 +742,23 @@ export default function PelangganPage() {
             </div>
             <div>
               <Label className="text-[11px] text-muted-foreground">
-                Alamat
+                {t("sales.col_address")}
               </Label>
               <Textarea
                 value={formAddress}
                 onChange={(e) => setFormAddress(e.target.value)}
-                placeholder="Alamat lengkap"
+                placeholder={t("sales.address_ph")}
                 className="bg-secondary border-border/50 text-[12px] min-h-[60px]"
               />
             </div>
             <div>
               <Label className="text-[11px] text-muted-foreground">
-                Catatan
+                {t("sales.col_notes")}
               </Label>
               <Textarea
                 value={formNotes}
                 onChange={(e) => setFormNotes(e.target.value)}
-                placeholder="Catatan tambahan"
+                placeholder={t("sales.notes_ph")}
                 className="bg-secondary border-border/50 text-[12px] min-h-[60px]"
               />
             </div>
@@ -760,14 +769,14 @@ export default function PelangganPage() {
                 className="h-9 text-[12px]"
                 onClick={() => setFormOpen(false)}
               >
-                Batal
+                {t("common.cancel")}
               </Button>
               <Button
-                className="h-9 bg-[oklch(0.65_0.18_260)] text-white text-[12px] hover:bg-[oklch(0.60_0.20_260)]"
+                className="h-9 bg-primary text-white text-[12px] hover:bg-primary/90"
                 onClick={handleSave}
                 disabled={saving}
               >
-                {saving ? "Menyimpan..." : "Simpan"}
+                {saving ? t("common.saving") : t("common.save")}
               </Button>
             </div>
           </div>

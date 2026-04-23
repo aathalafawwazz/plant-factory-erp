@@ -10,10 +10,12 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
+import { useLang } from "@/lib/i18n";
 
 export default function NewNutrientLogPage() {
   const router = useRouter();
   const supabase = createClient();
+  const { t } = useLang();
   const [loading, setLoading] = useState(false);
 
   const [selectedRack, setSelectedRack] = useState("A");
@@ -44,9 +46,9 @@ export default function NewNutrientLogPage() {
     });
 
     if (error) {
-      toast.error("Gagal menyimpan: " + error.message);
+      toast.error(t("nut.save_failed") + error.message);
     } else {
-      toast.success("Log nutrisi berhasil dicatat");
+      toast.success(t("nut.save_success"));
       router.push("/nutrisi");
       router.refresh();
     }
@@ -54,37 +56,37 @@ export default function NewNutrientLogPage() {
   }
 
   return (
-    <FloatingForm title="Catat Log Nutrisi" backHref="/nutrisi">
+    <FloatingForm title={t("nut.form_title")} backHref="/nutrisi">
       <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
-              <Label className="text-[13px] text-muted-foreground">Rak</Label>
+              <Label className="text-[13px] text-muted-foreground">{t("cult.rack")}</Label>
               <Select value={selectedRack} onValueChange={(v) => v !== null && setSelectedRack(v)}>
                 <SelectTrigger className="h-11 bg-secondary border-border/50 text-foreground">
-                  <SelectValue>{`Rak ${selectedRack}`}</SelectValue>
+                  <SelectValue>{`${t("cult.rack")} ${selectedRack}`}</SelectValue>
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="A">Rak A</SelectItem>
-                  <SelectItem value="B">Rak B</SelectItem>
+                  <SelectItem value="A">{t("cult.rack")} A</SelectItem>
+                  <SelectItem value="B">{t("cult.rack")} B</SelectItem>
                 </SelectContent>
               </Select>
             </div>
 
             <div className="space-y-2">
-              <Label className="text-[13px] text-muted-foreground">Nama Formula / Merek Nutrisi</Label>
+              <Label className="text-[13px] text-muted-foreground">{t("nut.formula_name")}</Label>
               <Input
                 className="h-11 bg-secondary border-border/50"
-                placeholder="Contoh: AB Mix Sayuran Daun"
+                placeholder={t("nut.formula_placeholder")}
                 value={formulaName}
                 onChange={(e) => setFormulaName(e.target.value)}
               />
             </div>
 
             <div className="space-y-2">
-              <Label className="text-[13px] text-muted-foreground">Volume Larutan (Liter)</Label>
+              <Label className="text-[13px] text-muted-foreground">{t("nut.volume_liter")}</Label>
               <Input
                 type="number"
                 className="h-11 bg-secondary border-border/50"
-                placeholder="Contoh: 100"
+                placeholder={t("nut.volume_placeholder")}
                 value={volumeLiters}
                 onChange={(e) => setVolumeLiters(e.target.value)}
                 step="0.1"
@@ -118,7 +120,7 @@ export default function NewNutrientLogPage() {
             </div>
 
             <div className="space-y-2">
-              <Label className="text-[13px] text-muted-foreground">Suhu Larutan (°C)</Label>
+              <Label className="text-[13px] text-muted-foreground">{t("nut.solution_temp")}</Label>
               <Input
                 type="number"
                 className="h-11 bg-secondary border-border/50"
@@ -130,17 +132,17 @@ export default function NewNutrientLogPage() {
             </div>
 
             <div className="space-y-2">
-              <Label className="text-[13px] text-muted-foreground">Catatan (opsional)</Label>
+              <Label className="text-[13px] text-muted-foreground">{t("common.notes_optional")}</Label>
               <Textarea
                 className="bg-secondary border-border/50"
-                placeholder="Catatan tambahan..."
+                placeholder={t("nut.notes_placeholder")}
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
               />
             </div>
 
-            <Button type="submit" className="w-full h-11 bg-[oklch(0.65_0.18_260)] hover:bg-[oklch(0.60_0.20_260)] text-white" disabled={loading}>
-              {loading ? "Menyimpan..." : "Simpan Log"}
+            <Button type="submit" className="w-full h-11 bg-primary hover:bg-primary/90 text-white" disabled={loading}>
+              {loading ? t("common.saving") : t("nut.save_log_btn")}
             </Button>
       </form>
     </FloatingForm>

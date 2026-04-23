@@ -19,6 +19,9 @@ import {
 import { Separator } from "@/components/ui/separator";
 import { toast } from "sonner";
 import { FileText, Download, Printer, Camera, X } from "lucide-react";
+import { useLang } from "@/lib/i18n";
+import { formatDateLocale, formatDateTimeLocale, translateCommodity } from "@/lib/translate-helpers";
+import type { Lang } from "@/lib/i18n-dict";
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
@@ -108,8 +111,8 @@ function fmtWeight(g: number): string {
   return `${g.toFixed(0)} g`;
 }
 
-function fmtDate(iso: string): string {
-  return new Date(iso).toLocaleDateString("id-ID", {
+function fmtDate(iso: string, lang: Lang): string {
+  return formatDateLocale(iso, lang, {
     day: "2-digit",
     month: "short",
     year: "numeric",
@@ -128,6 +131,7 @@ function avg(arr: (number | null)[]): number {
 
 export default function ReportPage() {
   const supabase = createClient();
+  const { t, lang } = useLang();
 
   /* ---------- active tab ---------- */
   const [activeTab, setActiveTab] = useState("otomatis");
@@ -280,15 +284,15 @@ export default function ReportPage() {
       Lubang: r.hole_canonical,
       Komoditas: r.crop_name,
       Batch: r.batch_code,
-      Tanggal_Tanam: fmtDate(r.planted_at),
-      Tanggal_Panen: r.harvested_at ? fmtDate(r.harvested_at) : "",
+      Tanggal_Tanam: fmtDate(r.planted_at, lang),
+      Tanggal_Panen: r.harvested_at ? fmtDate(r.harvested_at, lang) : "",
       Berat_gram: r.harvest_weight_g ?? "",
       Grade: r.quality_grade ?? "",
     }));
     const dateStr = new Date().toISOString().slice(0, 10);
     downloadCSV(exportRows, `laporan-otomatis-${dateStr}.csv`);
-    toast.success("CSV berhasil diekspor");
-  }, [harvested]);
+    toast.success(t("report.csv_exported"));
+  }, [harvested, t, lang]);
 
   /* ---------------------------------------------------------------- */
   /*  Photo capture                                                   */
@@ -344,7 +348,7 @@ export default function ReportPage() {
         }
       `}</style>
 
-      <h1 className="text-lg font-semibold text-foreground no-print">Laporan</h1>
+      <h1 className="text-lg font-semibold text-foreground no-print">{t("report.title")}</h1>
 
       <Tabs
         value={activeTab}
@@ -353,13 +357,13 @@ export default function ReportPage() {
         <TabsList className="h-10 bg-secondary border border-border/50 no-print">
           <TabsTrigger value="otomatis" className="text-sm">
             <FileText className="w-4 h-4 mr-1.5" />
-            Laporan Otomatis
+            {t("report.auto")}
           </TabsTrigger>
           <TabsTrigger value="manual" className="text-sm">
-            Laporan Manual
+            {t("report.manual")}
           </TabsTrigger>
           <TabsTrigger value="riwayat" className="text-sm">
-            Riwayat Laporan
+            {t("report.history")}
           </TabsTrigger>
         </TabsList>
 
@@ -370,7 +374,7 @@ export default function ReportPage() {
           {/* Action bar */}
           <div className="flex flex-wrap items-end gap-3 no-print">
             <div className="space-y-1">
-              <Label className="text-[13px] text-muted-foreground">Dari Tanggal</Label>
+              <Label className="text-[13px] text-muted-foreground">{t("report.from_date")}</Label>
               <Input
                 type="date"
                 className="h-11 bg-secondary border-border/50 w-40"
@@ -379,7 +383,7 @@ export default function ReportPage() {
               />
             </div>
             <div className="space-y-1">
-              <Label className="text-[13px] text-muted-foreground">Sampai Tanggal</Label>
+              <Label className="text-[13px] text-muted-foreground">{t("report.to_date")}</Label>
               <Input
                 type="date"
                 className="h-11 bg-secondary border-border/50 w-40"
@@ -388,12 +392,12 @@ export default function ReportPage() {
               />
             </div>
             <Button
-              className="h-9 bg-[oklch(0.65_0.18_260)] text-white text-[13px] hover:bg-[oklch(0.60_0.20_260)]"
+              className="h-9 bg-primary text-white text-[13px] hover:bg-primary/90"
               onClick={() => { setShowReport(true); loadData(); }}
               disabled={loading}
             >
               <FileText className="w-4 h-4 mr-1.5" />
-              {loading ? "Memuat..." : "Tampilkan Laporan"}
+              {loading ? t("common.loading") : t("report.show_report")}
             </Button>
             <Button
               variant="outline"
@@ -402,7 +406,7 @@ export default function ReportPage() {
               disabled={harvested.length === 0}
             >
               <Download className="w-4 h-4 mr-1.5" />
-              Ekspor CSV
+              {t("report.export_csv")}
             </Button>
             <Button
               variant="outline"
@@ -410,7 +414,7 @@ export default function ReportPage() {
               onClick={() => window.print()}
             >
               <Printer className="w-4 h-4 mr-1.5" />
-              Ekspor PDF
+              {t("report.export_pdf")}
             </Button>
           </div>
 
@@ -419,11 +423,11 @@ export default function ReportPage() {
             <div className="rounded-xl border border-border/40 bg-card p-6 space-y-6">
               {/* Print header */}
               <div className="hidden print-only">
-                <h1 className="text-xl font-bold">Laporan Produksi Plant Factory</h1>
+                <h1 className="text-xl font-bold">{t("report.print_header")}</h1>
                 <p className="text-sm text-muted-foreground">
-                  Tanggal cetak: {new Date().toLocaleDateString("id-ID")}
-                  {dateFrom && ` | Periode: ${fmtDate(dateFrom)}`}
-                  {dateTo && ` - ${fmtDate(dateTo)}`}
+                  {t("report.print_date")}: {formatDateLocale(new Date(), lang)}
+                  {dateFrom && ` | ${t("report.period")}: ${fmtDate(dateFrom, lang)}`}
+                  {dateTo && ` - ${fmtDate(dateTo, lang)}`}
                 </p>
                 <Separator className="my-3" />
               </div>
@@ -431,14 +435,14 @@ export default function ReportPage() {
               {/* Section A: Ringkasan Produksi */}
               <div>
                 <h2 className="text-[14px] font-semibold text-foreground mb-3">
-                  A. Ringkasan Produksi
+                  {t("report.production_summary")}
                 </h2>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                  <StatCard label="Batch Aktif" value={String(batchCount)} unit="" />
-                  <StatCard label="Lubang Aktif" value={String(activeHoleCount)} unit="" />
-                  <StatCard label="Total Panen" value={String(summary.totalCount)} unit="siklus" />
+                  <StatCard label={t("report.active_batches")} value={String(batchCount)} unit="" />
+                  <StatCard label={t("report.active_holes")} value={String(activeHoleCount)} unit="" />
+                  <StatCard label={t("cult.total_harvest")} value={String(summary.totalCount)} unit={t("report.cycles")} />
                   <StatCard
-                    label="Rata-rata Berat Panen"
+                    label={t("report.avg_harvest_weight")}
                     value={summary.totalCount > 0 ? summary.avgWeight.toFixed(0) : "-"}
                     unit={summary.totalCount > 0 ? "g" : ""}
                   />
@@ -447,7 +451,7 @@ export default function ReportPage() {
                 {/* Grade distribution bar */}
                 {gradeTotal > 0 && (
                   <div className="mt-4 rounded-lg border border-border/40 bg-card p-4">
-                    <p className="text-xs text-muted-foreground mb-2">Distribusi Grade</p>
+                    <p className="text-xs text-muted-foreground mb-2">{t("cult.grade_distribution")}</p>
                     <div className="flex h-5 w-full rounded overflow-hidden">
                       {Object.entries(summary.grades).map(([grade, count]) => (
                         <div
@@ -478,39 +482,39 @@ export default function ReportPage() {
               {/* Section B: Kondisi Lingkungan */}
               <div>
                 <h2 className="text-[14px] font-semibold text-foreground mb-3">
-                  B. Kondisi Lingkungan (7 Hari Terakhir)
+                  {t("report.env_conditions")}
                 </h2>
                 {envLogs.length > 0 ? (
                   <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
                     <StatCard
-                      label="Rata-rata Suhu"
+                      label={t("report.avg_temp")}
                       value={envSummary.avgTemp.toFixed(1)}
                       unit="°C"
                     />
                     <StatCard
-                      label="Rata-rata Kelembaban"
+                      label={t("report.avg_humidity")}
                       value={envSummary.avgHumidity.toFixed(1)}
                       unit="%"
                     />
                     <StatCard
-                      label="Rata-rata CO2"
+                      label={t("report.avg_co2")}
                       value={envSummary.avgCO2.toFixed(0)}
                       unit="ppm"
                     />
                     <StatCard
-                      label="Rata-rata VPD"
+                      label={t("report.avg_vpd")}
                       value={envSummary.avgVPD.toFixed(2)}
                       unit="kPa"
                     />
                     <StatCard
-                      label="Rata-rata PPFD"
+                      label={t("report.avg_ppfd")}
                       value={envSummary.avgPPFD.toFixed(0)}
                       unit="µmol"
                     />
                   </div>
                 ) : (
                   <p className="text-sm text-muted-foreground">
-                    Belum ada data lingkungan dalam 7 hari terakhir.
+                    {t("report.no_env_7d")}
                   </p>
                 )}
               </div>
@@ -520,18 +524,18 @@ export default function ReportPage() {
               {/* Section C: Riwayat Panen */}
               <div>
                 <h2 className="text-[14px] font-semibold text-foreground mb-3">
-                  C. Riwayat Panen (20 Terakhir)
+                  {t("report.harvest_history")}
                 </h2>
                 {recentHarvests.length > 0 ? (
                   <div className="rounded-lg border border-border/40 bg-card overflow-hidden">
                     <Table>
                       <TableHeader>
                         <TableRow>
-                          <TableHead className="text-[12px] text-muted-foreground">Lubang</TableHead>
-                          <TableHead className="text-[12px] text-muted-foreground">Komoditas</TableHead>
-                          <TableHead className="text-[12px] text-muted-foreground">Batch</TableHead>
-                          <TableHead className="text-[12px] text-muted-foreground">Tanggal Panen</TableHead>
-                          <TableHead className="text-[12px] text-muted-foreground">Berat (g)</TableHead>
+                          <TableHead className="text-[12px] text-muted-foreground">{t("cult.hole")}</TableHead>
+                          <TableHead className="text-[12px] text-muted-foreground">{t("cult.commodity")}</TableHead>
+                          <TableHead className="text-[12px] text-muted-foreground">{t("cult.batch")}</TableHead>
+                          <TableHead className="text-[12px] text-muted-foreground">{t("cult.harvest_date")}</TableHead>
+                          <TableHead className="text-[12px] text-muted-foreground">{t("cult.harvest_weight_short")} (g)</TableHead>
                           <TableHead className="text-[12px] text-muted-foreground">Grade</TableHead>
                         </TableRow>
                       </TableHeader>
@@ -539,10 +543,10 @@ export default function ReportPage() {
                         {recentHarvests.map((r) => (
                           <TableRow key={r.id}>
                             <TableCell className="text-[13px]">{r.hole_canonical}</TableCell>
-                            <TableCell className="text-[13px]">{r.crop_name}</TableCell>
+                            <TableCell className="text-[13px]">{translateCommodity(r.crop_name, lang)}</TableCell>
                             <TableCell className="text-[13px]">{r.batch_code}</TableCell>
                             <TableCell className="text-[13px]">
-                              {r.harvested_at ? fmtDate(r.harvested_at) : "-"}
+                              {r.harvested_at ? fmtDate(r.harvested_at, lang) : "-"}
                             </TableCell>
                             <TableCell className="text-[13px]">{r.harvest_weight_g ?? "-"}</TableCell>
                             <TableCell className="text-[13px]">{r.quality_grade ?? "-"}</TableCell>
@@ -553,7 +557,7 @@ export default function ReportPage() {
                   </div>
                 ) : (
                   <p className="text-sm text-muted-foreground">
-                    Belum ada data panen.
+                    {t("report.no_harvest")}
                   </p>
                 )}
               </div>
@@ -563,7 +567,7 @@ export default function ReportPage() {
           {!showReport && !loading && (
             <Card className="rounded-xl border border-border/40 bg-card">
               <CardContent className="py-12 text-center text-muted-foreground">
-                Tekan &quot;Tampilkan Laporan&quot; untuk membuat laporan otomatis dari data yang tersedia.
+                {t("report.empty_hint")}
               </CardContent>
             </Card>
           )}
@@ -571,7 +575,7 @@ export default function ReportPage() {
           {loading && (
             <Card className="rounded-xl border border-border/40 bg-card">
               <CardContent className="py-12 text-center text-muted-foreground">
-                Memuat data laporan...
+                {t("report.loading")}
               </CardContent>
             </Card>
           )}
@@ -583,17 +587,17 @@ export default function ReportPage() {
         <TabsContent value="manual" className="mt-4 space-y-4">
           <div className="rounded-xl border border-border/40 bg-card p-6 space-y-5">
             <h2 className="text-[14px] font-semibold text-foreground">
-              Buat Laporan Manual
+              {t("report.create_manual")}
             </h2>
 
             {/* Judul */}
             <div className="space-y-1.5">
               <Label className="text-[13px] text-muted-foreground">
-                Judul Laporan <span className="text-red-400">*</span>
+                {t("report.report_title")} <span className="text-red-400">*</span>
               </Label>
               <Input
                 className="h-11 bg-secondary border-border/50"
-                placeholder="Contoh: Laporan Mingguan Produksi"
+                placeholder={t("report.title_placeholder")}
                 value={manualTitle}
                 onChange={(e) => setManualTitle(e.target.value)}
               />
@@ -602,7 +606,7 @@ export default function ReportPage() {
             {/* Periode */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-1.5">
-                <Label className="text-[13px] text-muted-foreground">Periode Dari</Label>
+                <Label className="text-[13px] text-muted-foreground">{t("report.period_from")}</Label>
                 <Input
                   type="date"
                   className="h-11 bg-secondary border-border/50"
@@ -611,7 +615,7 @@ export default function ReportPage() {
                 />
               </div>
               <div className="space-y-1.5">
-                <Label className="text-[13px] text-muted-foreground">Periode Sampai</Label>
+                <Label className="text-[13px] text-muted-foreground">{t("report.period_to")}</Label>
                 <Input
                   type="date"
                   className="h-11 bg-secondary border-border/50"
@@ -624,11 +628,11 @@ export default function ReportPage() {
             {/* Ringkasan/Analisis */}
             <div className="space-y-1.5">
               <Label className="text-[13px] text-muted-foreground">
-                Ringkasan / Analisis <span className="text-red-400">*</span>
+                {t("report.summary_analysis")} <span className="text-red-400">*</span>
               </Label>
               <Textarea
                 className="min-h-[120px] bg-secondary border-border/50"
-                placeholder="Tuliskan ringkasan analisis produksi..."
+                placeholder={t("report.summary_placeholder")}
                 value={manualSummary}
                 onChange={(e) => setManualSummary(e.target.value)}
               />
@@ -637,11 +641,11 @@ export default function ReportPage() {
             {/* Kondisi Lingkungan - Catatan */}
             <div className="space-y-1.5">
               <Label className="text-[13px] text-muted-foreground">
-                Kondisi Lingkungan - Catatan
+                {t("report.env_notes")}
               </Label>
               <Textarea
                 className="min-h-[80px] bg-secondary border-border/50"
-                placeholder="Catatan terkait suhu, kelembaban, pH, EC, dll..."
+                placeholder={t("report.env_notes_placeholder")}
                 value={manualEnvNotes}
                 onChange={(e) => setManualEnvNotes(e.target.value)}
               />
@@ -650,11 +654,11 @@ export default function ReportPage() {
             {/* Kondisi Produksi - Catatan */}
             <div className="space-y-1.5">
               <Label className="text-[13px] text-muted-foreground">
-                Kondisi Produksi - Catatan
+                {t("report.prod_notes")}
               </Label>
               <Textarea
                 className="min-h-[80px] bg-secondary border-border/50"
-                placeholder="Catatan terkait pertumbuhan, penyakit, kendala produksi..."
+                placeholder={t("report.prod_notes_placeholder")}
                 value={manualProdNotes}
                 onChange={(e) => setManualProdNotes(e.target.value)}
               />
@@ -662,10 +666,10 @@ export default function ReportPage() {
 
             {/* Rekomendasi */}
             <div className="space-y-1.5">
-              <Label className="text-[13px] text-muted-foreground">Rekomendasi</Label>
+              <Label className="text-[13px] text-muted-foreground">{t("report.recommendation")}</Label>
               <Textarea
                 className="min-h-[80px] bg-secondary border-border/50"
-                placeholder="Rekomendasi tindak lanjut..."
+                placeholder={t("report.recommendation_placeholder")}
                 value={manualRecommendation}
                 onChange={(e) => setManualRecommendation(e.target.value)}
               />
@@ -675,7 +679,7 @@ export default function ReportPage() {
 
             {/* Foto Dokumentasi */}
             <div className="space-y-3">
-              <Label className="text-[13px] text-muted-foreground">Foto Dokumentasi</Label>
+              <Label className="text-[13px] text-muted-foreground">{t("report.photo_doc")}</Label>
               <div className="flex items-center gap-3">
                 <Button
                   variant="outline"
@@ -683,7 +687,7 @@ export default function ReportPage() {
                   onClick={() => fileInputRef.current?.click()}
                 >
                   <Camera className="w-4 h-4 mr-1.5" />
-                  Ambil Foto
+                  {t("report.take_photo")}
                 </Button>
                 <input
                   ref={fileInputRef}
@@ -694,7 +698,7 @@ export default function ReportPage() {
                   onChange={handlePhotoCapture}
                 />
                 <span className="text-[12px] text-muted-foreground italic">
-                  Foto disimpan sementara di browser
+                  {t("report.photo_browser_hint")}
                 </span>
               </div>
 
@@ -707,7 +711,7 @@ export default function ReportPage() {
                     >
                       <img
                         src={p.dataUrl}
-                        alt={`Foto ${i + 1}`}
+                        alt={`${t("report.photo_alt")} ${i + 1}`}
                         className="w-full aspect-square object-cover"
                       />
                       <button
@@ -717,7 +721,7 @@ export default function ReportPage() {
                         <X className="w-3 h-3 text-white" />
                       </button>
                       <p className="text-[11px] text-muted-foreground text-center py-1 px-1 truncate">
-                        {p.timestamp.toLocaleString("id-ID", {
+                        {formatDateTimeLocale(p.timestamp, lang, {
                           day: "2-digit",
                           month: "short",
                           hour: "2-digit",
@@ -735,16 +739,16 @@ export default function ReportPage() {
             {/* Actions */}
             <div className="flex flex-wrap gap-3">
               <Button
-                className="h-9 bg-[oklch(0.65_0.18_260)] text-white text-[13px] hover:bg-[oklch(0.60_0.20_260)]"
+                className="h-9 bg-primary text-white text-[13px] hover:bg-primary/90"
                 onClick={() => {
                   if (!manualTitle.trim() || !manualSummary.trim()) {
-                    toast.error("Judul dan Ringkasan wajib diisi");
+                    toast.error(t("report.title_summary_required"));
                     return;
                   }
-                  toast.success("Laporan disimpan (fitur penyimpanan akan segera tersedia)");
+                  toast.success(t("report.saved_pending"));
                 }}
               >
-                Simpan Laporan
+                {t("report.save_report")}
               </Button>
               <Button
                 variant="outline"
@@ -752,7 +756,7 @@ export default function ReportPage() {
                 onClick={() => window.print()}
               >
                 <Printer className="w-4 h-4 mr-1.5" />
-                Ekspor PDF
+                {t("report.export_pdf")}
               </Button>
             </div>
           </div>
@@ -766,7 +770,7 @@ export default function ReportPage() {
             <CardContent className="py-16 text-center">
               <FileText className="w-10 h-10 text-muted-foreground/40 mx-auto mb-3" />
               <p className="text-sm text-muted-foreground">
-                Riwayat laporan akan tersedia setelah fitur penyimpanan diaktifkan.
+                {t("report.history_pending")}
               </p>
             </CardContent>
           </Card>

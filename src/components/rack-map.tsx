@@ -14,19 +14,22 @@ import { HoleCell } from "@/components/hole-cell";
 import { HoleDetailPanel } from "@/components/hole-detail-panel";
 import { HOLE_STATUS, RACK_CONFIG, type HoleStatus } from "@/lib/constants";
 import type { Hole, PlantingCycle, CropCatalog } from "@/lib/types/database";
+import { useLang } from "@/lib/i18n";
 import { toast } from "sonner";
-import { MousePointerClick, X, Sprout, Camera } from "lucide-react";
+import { MousePointerClick, X, Sprout, Camera, ChevronLeft, ChevronRight, Check, RotateCcw } from "lucide-react";
 import { useRef } from "react";
 
 interface RackMapProps {
   holes: Hole[];
   cycles: (PlantingCycle & { crop_catalog: CropCatalog })[];
   crops: CropCatalog[];
+  researchAllocations?: Record<number, string>;   // holeId -> tooltip text
 }
 
-export function RackMap({ holes, cycles, crops }: RackMapProps) {
+export function RackMap({ holes, cycles, crops, researchAllocations = {} }: RackMapProps) {
   const router = useRouter();
   const supabase = createClient();
+  const { t } = useLang();
 
   // Single select (detail view)
   const [selectedHoleId, setSelectedHoleId] = useState<number | null>(null);
@@ -35,22 +38,53 @@ export function RackMap({ holes, cycles, crops }: RackMapProps) {
   const [multiSelectMode, setMultiSelectMode] = useState(false);
   const [multiSelectedIds, setMultiSelectedIds] = useState<Set<number>>(new Set());
 
-  // Bulk planting dialog
+  // Bulk planting dialog — multi-step flow: setup → capture → review
+  type BulkPhoto = { dataUrl: string; file: File; timestamp: Date };
   const [showBulkPlant, setShowBulkPlant] = useState(false);
+  const [bulkStep, setBulkStep] = useState<"setup" | "capture" | "review">("setup");
+  const [bulkCaptureIndex, setBulkCaptureIndex] = useState(0);
   const [bulkCropId, setBulkCropId] = useState("");
   const [bulkNotes, setBulkNotes] = useState("");
-  const [bulkPhotos, setBulkPhotos] = useState<{ dataUrl: string; timestamp: Date }[]>([]);
+  const [bulkPhotoMap, setBulkPhotoMap] = useState<Map<number, BulkPhoto>>(new Map());
   const [bulkErrors, setBulkErrors] = useState<Record<string, string>>({});
   const [bulkLoading, setBulkLoading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Bulk action (status update)
+  // Stable ordered list of selected hole IDs (sorted by canonical_id).
+  const bulkOrderedHoleIds = Array.from(multiSelectedIds)
+    .map((id) => holes.find((h) => h.id === id))
+    .filter((h): h is Hole => !!h)
+    .sort((a, b) => a.canonical_id.localeCompare(b.canonical_id, undefined, { numeric: true }))
+    .map((h) => h.id);
+
+  function resetBulkPlant() {
+    setBulkStep("setup");
+    setBulkCaptureIndex(0);
+    setBulkCropId("");
+    setBulkNotes("");
+    setBulkPhotoMap(new Map());
+    setBulkErrors({});
+  }
+
+  // Bulk action (status update) — per-hole photo flow (capture → review)
   const [bulkAction, setBulkAction] = useState("");
   const [showBulkAction, setShowBulkAction] = useState(false);
-  const [bulkActionPhotos, setBulkActionPhotos] = useState<{ dataUrl: string; timestamp: Date }[]>([]);
+  const [bulkActionStep, setBulkActionStep] = useState<"capture" | "review">("capture");
+  const [bulkActionCaptureIndex, setBulkActionCaptureIndex] = useState(0);
+  const [bulkActionPhotoMap, setBulkActionPhotoMap] = useState<Map<number, BulkPhoto>>(new Map());
   const [bulkActionErrors, setBulkActionErrors] = useState<Record<string, string>>({});
   const [bulkActionLoading, setBulkActionLoading] = useState(false);
   const actionFileInputRef = useRef<HTMLInputElement>(null);
+
+  const bulkActionOrderedHoleIds = bulkOrderedHoleIds; // same ordering as plant flow
+
+  function resetBulkAction() {
+    setBulkAction("");
+    setBulkActionStep("capture");
+    setBulkActionCaptureIndex(0);
+    setBulkActionPhotoMap(new Map());
+    setBulkActionErrors({});
+  }
 
   // Drag select/deselect
   const [isDragging, setIsDragging] = useState(false);
@@ -108,14 +142,6 @@ export function RackMap({ holes, cycles, crops }: RackMapProps) {
     [holes]
   );
 
-  const statusCounts = holes.reduce(
-    (acc, h) => {
-      acc[h.status as HoleStatus] = (acc[h.status as HoleStatus] || 0) + 1;
-      return acc;
-    },
-    {} as Record<HoleStatus, number>
-  );
-
   function handleCellClick(hole: Hole) {
     if (multiSelectMode) {
       setMultiSelectedIds((prev) => {
@@ -147,34 +173,77 @@ export function RackMap({ holes, cycles, crops }: RackMapProps) {
 
   function openBulkPlant() {
     if (multiSelectedIds.size === 0) {
-      toast.error("Pilih minimal 1 lubang");
+      toast.error(t("rmap.select_min_one"));
       return;
     }
+    resetBulkPlant();
     setShowBulkPlant(true);
   }
 
   function handleBulkPhotoCapture(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
+    const targetHoleId = bulkOrderedHoleIds[bulkCaptureIndex];
+    if (!targetHoleId) return;
     const reader = new FileReader();
     reader.onload = () => {
-      setBulkPhotos((prev) => [...prev, { dataUrl: reader.result as string, timestamp: new Date() }]);
+      setBulkPhotoMap((prev) => {
+        const next = new Map(prev);
+        next.set(targetHoleId, {
+          dataUrl: reader.result as string,
+          file,
+          timestamp: new Date(),
+        });
+        return next;
+      });
       setBulkErrors((p) => ({ ...p, photos: "" }));
+      // Auto-advance to next uncaptured hole
+      setTimeout(() => {
+        const nextIdx = findNextUncapturedIndex(bulkCaptureIndex, targetHoleId);
+        if (nextIdx !== -1) setBulkCaptureIndex(nextIdx);
+        else setBulkStep("review");
+      }, 600);
     };
     reader.readAsDataURL(file);
     e.target.value = "";
   }
 
+  function findNextUncapturedIndex(fromIdx: number, justCapturedId: number): number {
+    for (let i = fromIdx + 1; i < bulkOrderedHoleIds.length; i++) {
+      const id = bulkOrderedHoleIds[i];
+      if (id !== justCapturedId && !bulkPhotoMap.has(id)) return i;
+    }
+    for (let i = 0; i < fromIdx; i++) {
+      const id = bulkOrderedHoleIds[i];
+      if (!bulkPhotoMap.has(id)) return i;
+    }
+    return -1;
+  }
+
+  function retakePhoto(holeId: number) {
+    setBulkPhotoMap((prev) => {
+      const next = new Map(prev);
+      next.delete(holeId);
+      return next;
+    });
+    const idx = bulkOrderedHoleIds.indexOf(holeId);
+    if (idx >= 0) {
+      setBulkCaptureIndex(idx);
+      setBulkStep("capture");
+    }
+  }
+
   function getCropDisplayName() {
     if (!bulkCropId) return undefined;
     const crop = crops.find((c) => String(c.id) === bulkCropId);
-    return crop ? `${crop.name_id} (${crop.grow_duration_days} hari)` : undefined;
+    return crop ? `${crop.name_id} (${crop.grow_duration_days} ${t("unit.days")})` : undefined;
   }
 
   async function handleBulkPlant() {
     const errs: Record<string, string> = {};
-    if (!bulkCropId) errs.crop = "Pilih komoditas";
-    if (bulkPhotos.length === 0) errs.photos = "Ambil minimal 1 foto";
+    if (!bulkCropId) errs.crop = t("rmap.choose_commodity");
+    const missingPhotos = bulkOrderedHoleIds.filter((id) => !bulkPhotoMap.has(id));
+    if (missingPhotos.length > 0) errs.photos = t("rmap.n_holes_no_photo").replace("{n}", String(missingPhotos.length));
     if (Object.keys(errs).length > 0) { setBulkErrors(errs); return; }
 
     setBulkLoading(true);
@@ -183,24 +252,25 @@ export function RackMap({ holes, cycles, crops }: RackMapProps) {
 
     const { data: { user } } = await supabase.auth.getUser();
 
-    // Create batch
+    // 1. Create batch
     const { data: batch, error: batchErr } = await supabase
       .from("batches")
       .insert({ crop_catalog_id: crop.id, notes: bulkNotes || null, created_by: user?.id })
       .select().single();
 
     if (batchErr || !batch) {
-      toast.error("Gagal membuat batch");
+      console.error("[bulk-plant] batch insert failed:", batchErr);
+      toast.error(`${t("rmap.create_batch_failed")} ${batchErr?.message ?? "unknown"}`);
       setBulkLoading(false);
       return;
     }
 
+    // 2. Create cycles
     const plantedAt = new Date();
     const expectedHarvest = new Date(plantedAt);
     expectedHarvest.setDate(expectedHarvest.getDate() + crop.grow_duration_days);
 
-    const holeIds = Array.from(multiSelectedIds);
-    const cycleInserts = holeIds.map((holeId) => ({
+    const cycleInserts = bulkOrderedHoleIds.map((holeId) => ({
       hole_id: holeId,
       batch_id: batch.id,
       crop_catalog_id: crop.id,
@@ -213,11 +283,47 @@ export function RackMap({ holes, cycles, crops }: RackMapProps) {
       .from("planting_cycles").insert(cycleInserts).select();
 
     if (cycleErr) {
-      toast.error("Gagal membuat siklus tanam");
+      const e = cycleErr as { message?: string; details?: string; hint?: string; code?: string };
+      console.error(`[bulk-plant] cycle insert failed: code=${e.code} message=${e.message} details=${e.details} hint=${e.hint}`, { cycleInserts });
+      toast.error(`${t("rmap.create_cycle_failed")} ${e.message ?? e.details ?? "unknown"}`);
       setBulkLoading(false);
       return;
     }
 
+    // 3. Upload each photo to Storage + insert planting_photos row
+    const photoRows: { cycle_id: number; storage_path: string; captured_at: string; captured_by: string | null }[] = [];
+    const uploadErrors: string[] = [];
+
+    await Promise.all((newCycles ?? []).map(async (cycle) => {
+      const photo = bulkPhotoMap.get(cycle.hole_id);
+      if (!photo) return;
+      const ext = photo.file.name.split(".").pop()?.toLowerCase() || "jpg";
+      const storagePath = `${cycle.id}/${photo.timestamp.getTime()}.${ext}`;
+      const { error: uploadErr } = await supabase.storage
+        .from("planting-photos")
+        .upload(storagePath, photo.file, { contentType: photo.file.type || "image/jpeg", upsert: false });
+      if (uploadErr) {
+        console.error(`[bulk-plant] upload failed cycle=${cycle.id}:`, uploadErr);
+        uploadErrors.push(`${cycle.hole_id}: ${uploadErr.message}`);
+        return;
+      }
+      photoRows.push({
+        cycle_id: cycle.id,
+        storage_path: storagePath,
+        captured_at: photo.timestamp.toISOString(),
+        captured_by: user?.id ?? null,
+      });
+    }));
+
+    if (photoRows.length > 0) {
+      const { error: photoErr } = await supabase.from("planting_photos").insert(photoRows);
+      if (photoErr) {
+        console.error("[bulk-plant] planting_photos insert failed:", photoErr);
+        uploadErrors.push(`DB: ${photoErr.message}`);
+      }
+    }
+
+    // 4. Sync holes (redundant with trigger, but safe)
     if (newCycles) {
       for (const cycle of newCycles) {
         await supabase.from("holes")
@@ -226,12 +332,14 @@ export function RackMap({ holes, cycles, crops }: RackMapProps) {
       }
     }
 
-    toast.success(`Berhasil menanam ${holeIds.length} lubang — ${batch.batch_code}`);
+    if (uploadErrors.length > 0) {
+      toast.warning(t("rmap.bulk_plant_partial").replace("{n}", String(uploadErrors.length)));
+    } else {
+      toast.success(t("rmap.bulk_plant_success").replace("{n}", String(bulkOrderedHoleIds.length)).replace("{batch}", batch.batch_code));
+    }
+
     setShowBulkPlant(false);
-    setBulkCropId("");
-    setBulkNotes("");
-    setBulkPhotos([]);
-    setBulkErrors({});
+    resetBulkPlant();
     exitMultiSelect();
     setBulkLoading(false);
     router.refresh();
@@ -240,92 +348,192 @@ export function RackMap({ holes, cycles, crops }: RackMapProps) {
   function handleBulkActionPhotoCapture(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
+    const targetHoleId = bulkActionOrderedHoleIds[bulkActionCaptureIndex];
+    if (!targetHoleId) return;
     const reader = new FileReader();
     reader.onload = () => {
-      setBulkActionPhotos((prev) => [...prev, { dataUrl: reader.result as string, timestamp: new Date() }]);
+      setBulkActionPhotoMap((prev) => {
+        const next = new Map(prev);
+        next.set(targetHoleId, {
+          dataUrl: reader.result as string,
+          file,
+          timestamp: new Date(),
+        });
+        return next;
+      });
       setBulkActionErrors((p) => ({ ...p, photos: "" }));
+      setTimeout(() => {
+        const nextIdx = findNextUncapturedIndexInMap(bulkActionPhotoMap, bulkActionOrderedHoleIds, bulkActionCaptureIndex, targetHoleId);
+        if (nextIdx !== -1) setBulkActionCaptureIndex(nextIdx);
+        else setBulkActionStep("review");
+      }, 600);
     };
     reader.readAsDataURL(file);
     e.target.value = "";
   }
 
+  function retakeActionPhoto(holeId: number) {
+    setBulkActionPhotoMap((prev) => {
+      const next = new Map(prev);
+      next.delete(holeId);
+      return next;
+    });
+    const idx = bulkActionOrderedHoleIds.indexOf(holeId);
+    if (idx >= 0) {
+      setBulkActionCaptureIndex(idx);
+      setBulkActionStep("capture");
+    }
+  }
+
   async function handleBulkActionSubmit() {
-    const errs: Record<string, string> = {};
-    if (bulkActionPhotos.length === 0) errs.photos = "Ambil minimal 1 foto";
-    if (Object.keys(errs).length > 0) { setBulkActionErrors(errs); return; }
+    const missing = bulkActionOrderedHoleIds.filter((id) => !bulkActionPhotoMap.has(id));
+    if (missing.length > 0) {
+      setBulkActionErrors({ photos: t("rmap.n_holes_no_photo").replace("{n}", String(missing.length)) });
+      return;
+    }
 
     setBulkActionLoading(true);
-    const holeIds = Array.from(multiSelectedIds);
+    const { data: { user } } = await supabase.auth.getUser();
     const targetStatus = bulkAction as HoleStatus;
+    const photoKind: "planting" | "maintenance" | "harvest" =
+      targetStatus === "harvested" ? "harvest" : "maintenance";
 
-    // Update holes
-    for (const holeId of holeIds) {
-      await supabase.from("holes").update({ status: targetStatus }).eq("id", holeId);
-      // Update cycle if exists
+    // 1. Update holes & cycles
+    const cycleIdsByHole = new Map<number, number>();
+    for (const holeId of bulkActionOrderedHoleIds) {
       const hole = holes.find((h) => h.id === holeId);
-      if (hole?.current_cycle_id && (targetStatus === "planted" || targetStatus === "growing" || targetStatus === "ready_harvest")) {
-        await supabase.from("planting_cycles").update({ status: targetStatus }).eq("id", hole.current_cycle_id);
+      await supabase.from("holes").update({ status: targetStatus }).eq("id", holeId);
+      if (hole?.current_cycle_id) {
+        cycleIdsByHole.set(holeId, hole.current_cycle_id);
+        if (targetStatus === "planted" || targetStatus === "growing" || targetStatus === "ready_harvest") {
+          await supabase.from("planting_cycles").update({ status: targetStatus }).eq("id", hole.current_cycle_id);
+        }
       }
       if (targetStatus === "empty" && hole?.current_cycle_id) {
         await supabase.from("holes").update({ current_cycle_id: null }).eq("id", holeId);
       }
     }
 
-    toast.success(`${holeIds.length} lubang diubah ke ${HOLE_STATUS[targetStatus].label}`);
+    // 2. Upload photos for holes that have an attached cycle
+    const photoRows: { cycle_id: number; storage_path: string; kind: "planting" | "maintenance" | "harvest"; captured_at: string; captured_by: string | null }[] = [];
+    const uploadErrors: string[] = [];
+    let skippedNoCycle = 0;
+
+    await Promise.all(bulkActionOrderedHoleIds.map(async (holeId) => {
+      const photo = bulkActionPhotoMap.get(holeId);
+      const cycleId = cycleIdsByHole.get(holeId);
+      if (!photo) return;
+      if (!cycleId) { skippedNoCycle += 1; return; }
+      const ext = photo.file.name.split(".").pop()?.toLowerCase() || "jpg";
+      const storagePath = `${cycleId}/${photo.timestamp.getTime()}-${photoKind}.${ext}`;
+      const { error: uploadErr } = await supabase.storage
+        .from("planting-photos")
+        .upload(storagePath, photo.file, { contentType: photo.file.type || "image/jpeg", upsert: false });
+      if (uploadErr) {
+        console.error(`[bulk-action] upload failed cycle=${cycleId}:`, uploadErr);
+        uploadErrors.push(`${holeId}: ${uploadErr.message}`);
+        return;
+      }
+      photoRows.push({
+        cycle_id: cycleId,
+        storage_path: storagePath,
+        kind: photoKind,
+        captured_at: photo.timestamp.toISOString(),
+        captured_by: user?.id ?? null,
+      });
+    }));
+
+    if (photoRows.length > 0) {
+      const { error: photoErr } = await supabase.from("planting_photos").insert(photoRows);
+      if (photoErr) {
+        console.error("[bulk-action] planting_photos insert failed:", photoErr);
+        uploadErrors.push(`DB: ${photoErr.message}`);
+      }
+    }
+
+    const statusLabel = t(HOLE_STATUS[targetStatus].labelKey);
+    if (uploadErrors.length > 0) {
+      toast.warning(t("rmap.bulk_action_partial").replace("{n}", String(uploadErrors.length)));
+    } else if (skippedNoCycle > 0) {
+      toast.success(
+        t("rmap.bulk_action_skipped")
+          .replace("{n}", String(bulkActionOrderedHoleIds.length))
+          .replace("{status}", statusLabel)
+          .replace("{skipped}", String(skippedNoCycle))
+      );
+    } else {
+      toast.success(
+        t("rmap.bulk_action_success")
+          .replace("{n}", String(bulkActionOrderedHoleIds.length))
+          .replace("{status}", statusLabel)
+      );
+    }
+
     setShowBulkAction(false);
-    setBulkAction("");
-    setBulkActionPhotos([]);
-    setBulkActionErrors({});
+    resetBulkAction();
     exitMultiSelect();
     setBulkActionLoading(false);
     router.refresh();
+  }
+
+  // Shared helper: find next uncaptured hole index, wrapping around.
+  function findNextUncapturedIndexInMap(
+    map: Map<number, BulkPhoto>,
+    orderedIds: number[],
+    fromIdx: number,
+    justCapturedId: number
+  ): number {
+    for (let i = fromIdx + 1; i < orderedIds.length; i++) {
+      const id = orderedIds[i];
+      if (id !== justCapturedId && !map.has(id)) return i;
+    }
+    for (let i = 0; i < fromIdx; i++) {
+      const id = orderedIds[i];
+      if (!map.has(id)) return i;
+    }
+    return -1;
   }
 
   return (
     <>
       {/* eslint-disable-next-line jsx-a11y/no-static-element-interactions */}
       <div onMouseUp={handleDragEnd} onMouseLeave={handleDragEnd}>
-      {/* Legend */}
-      <div className="flex flex-wrap gap-4 mb-4">
-        {Object.entries(HOLE_STATUS).map(([key, config]) => (
-          <div key={key} className="flex items-center gap-1.5 text-[12px]">
-            <span className={`h-2.5 w-2.5 rounded ${config.dotColor}`} />
-            <span className="text-muted-foreground">{config.label}</span>
-            <span className="text-foreground font-medium">{statusCounts[key as HoleStatus] || 0}</span>
-          </div>
-        ))}
-      </div>
-
       {/* Multi-select toolbar */}
       <div className="flex items-center justify-between mb-3">
         {multiSelectMode ? (
           <div className="flex items-center gap-2 flex-wrap">
             <span className="text-[13px] text-[oklch(0.75_0.17_150)] font-medium">
-              {multiSelectedIds.size} lubang dipilih
+              {multiSelectedIds.size} {t("rmap.holes_selected")}
             </span>
             {/* Show "Tanam" if any empty holes selected */}
             {Array.from(multiSelectedIds).some((id) => holes.find((h) => h.id === id)?.status === "empty") && (
-              <Button size="sm" className="h-8 text-[12px] bg-[oklch(0.65_0.18_260)] hover:bg-[oklch(0.60_0.20_260)] text-white"
+              <Button size="sm" className="h-8 text-[12px] bg-primary hover:bg-primary/90 text-white"
                 onClick={openBulkPlant} disabled={multiSelectedIds.size === 0}>
-                <Sprout className="h-3.5 w-3.5 mr-1" /> Tanam
+                <Sprout className="h-3.5 w-3.5 mr-1" /> {t("rmap.plant_btn")}
               </Button>
             )}
             {/* Show "Ubah Status" dropdown for bulk status change */}
             <Select value={bulkAction} onValueChange={(v) => {
               if (v !== null) {
                 setBulkAction(v);
-                if (multiSelectedIds.size > 0) setShowBulkAction(true);
+                if (multiSelectedIds.size > 0) {
+                  setBulkActionStep("capture");
+                  setBulkActionCaptureIndex(0);
+                  setBulkActionPhotoMap(new Map());
+                  setBulkActionErrors({});
+                  setShowBulkAction(true);
+                }
               }
             }}>
               <SelectTrigger className="h-8 bg-secondary border-border/50 text-[12px] w-[140px]">
-                <SelectValue placeholder="Ubah Status...">{bulkAction ? HOLE_STATUS[bulkAction as HoleStatus]?.label : undefined}</SelectValue>
+                <SelectValue placeholder={t("rmap.change_status")}>{bulkAction ? t(HOLE_STATUS[bulkAction as HoleStatus]?.labelKey) : undefined}</SelectValue>
               </SelectTrigger>
               <SelectContent>
                 {(Object.keys(HOLE_STATUS) as HoleStatus[]).map((s) => (
                   <SelectItem key={s} value={s}>
                     <span className="flex items-center gap-1.5">
                       <span className={`h-1.5 w-1.5 rounded-full ${HOLE_STATUS[s].dotColor}`} />
-                      {HOLE_STATUS[s].label}
+                      {t(HOLE_STATUS[s].labelKey)}
                     </span>
                   </SelectItem>
                 ))}
@@ -333,7 +541,7 @@ export function RackMap({ holes, cycles, crops }: RackMapProps) {
             </Select>
             <Button size="sm" variant="ghost" className="h-8 text-[12px] text-muted-foreground" onClick={exitMultiSelect}>
               <X className="h-3.5 w-3.5 mr-1" />
-              Batal
+              {t("rmap.cancel")}
             </Button>
           </div>
         ) : (
@@ -344,30 +552,75 @@ export function RackMap({ holes, cycles, crops }: RackMapProps) {
             onClick={() => setMultiSelectMode(true)}
           >
             <MousePointerClick className="h-3.5 w-3.5 mr-1.5" />
-            Pilih Beberapa Lubang
+            {t("rmap.select_multi")}
           </Button>
         )}
       </div>
 
       <Tabs defaultValue="A" className="w-full">
         <TabsList className="grid w-full grid-cols-2 h-10 bg-secondary border border-border/50">
-          <TabsTrigger value="A" className="text-sm data-[state=active]:bg-[oklch(0.65_0.18_260)] data-[state=active]:text-white">Rak A</TabsTrigger>
-          <TabsTrigger value="B" className="text-sm data-[state=active]:bg-[oklch(0.65_0.18_260)] data-[state=active]:text-white">Rak B</TabsTrigger>
+          <TabsTrigger value="A" className="text-sm data-[state=active]:bg-primary data-[state=active]:text-white">{t("rmap.rack_a")}</TabsTrigger>
+          <TabsTrigger value="B" className="text-sm data-[state=active]:bg-primary data-[state=active]:text-white">{t("rmap.rack_b")}</TabsTrigger>
         </TabsList>
 
         {RACK_CONFIG.racks.map((rack) => (
           <TabsContent key={rack} value={rack} className="mt-4 space-y-3">
-            {[...RACK_CONFIG.tiers].reverse().map((tier) => (
+            {[...RACK_CONFIG.tiers].reverse().map((tier) => {
+              const tierHoles = holes.filter((h) => h.rack === rack && h.tier === tier);
+              const tierTotal = tierHoles.length;
+              const tierActive = tierHoles.filter((h) => h.status === "planted" || h.status === "growing" || h.status === "ready_harvest").length;
+              const tierBreakdown: Record<HoleStatus, number> = {
+                empty: 0, planted: 0, growing: 0, ready_harvest: 0, harvested: 0, maintenance: 0,
+              };
+              tierHoles.forEach((h) => { tierBreakdown[h.status as HoleStatus] = (tierBreakdown[h.status as HoleStatus] ?? 0) + 1; });
+              const TIER_STATUS_HEX: Record<HoleStatus, string> = {
+                empty: "#3a3d45", planted: "#638cff", growing: "#4ade80",
+                ready_harvest: "#f59e0b", harvested: "#2dd4bf", maintenance: "#ef4444",
+              };
+              return (
               <div key={tier} className="rounded-lg border border-border/50 bg-card">
-                <div className="px-4 py-2.5 border-b border-border/30 bg-secondary/30 flex items-center justify-between">
-                  <h3 className="text-[13px] font-medium text-foreground">Tingkat {tier}</h3>
+                <div className="px-4 py-2.5 border-b border-border/30 bg-secondary/30 flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <h3 className="text-[13px] font-medium text-foreground shrink-0">{t("rmap.tier")} {tier}</h3>
+                    {/* Per-tier mini summary (desktop only to avoid clutter on mobile) */}
+                    <div className="hidden md:flex items-center gap-2 min-w-0">
+                      <span className="text-[11px] text-muted-foreground whitespace-nowrap">
+                        <span className="text-foreground font-semibold">{tierActive}</span>
+                        <span className="mx-1 opacity-50">/</span>
+                        <span>{tierTotal} {t("rmap.active_suffix")}</span>
+                      </span>
+                      <div className="h-1.5 w-[140px] rounded-full overflow-hidden flex bg-secondary/40">
+                        {(Object.keys(tierBreakdown) as HoleStatus[]).map((k) => {
+                          const pct = tierTotal > 0 ? (tierBreakdown[k] / tierTotal) * 100 : 0;
+                          if (pct === 0) return null;
+                          return (
+                            <div
+                              key={k}
+                              title={`${t(HOLE_STATUS[k].labelKey)}: ${tierBreakdown[k]}`}
+                              style={{ width: `${pct}%`, backgroundColor: TIER_STATUS_HEX[k] }}
+                              className="h-full"
+                            />
+                          );
+                        })}
+                      </div>
+                      <div className="flex gap-1.5 ml-1">
+                        {(["planted", "growing", "ready_harvest", "maintenance"] as HoleStatus[]).map((k) => (
+                          tierBreakdown[k] > 0 && (
+                            <span key={k} className="inline-flex items-center gap-1 text-[10px] text-muted-foreground">
+                              <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: TIER_STATUS_HEX[k] }} />
+                              {tierBreakdown[k]}
+                            </span>
+                          )
+                        ))}
+                      </div>
+                    </div>
+                  </div>
                   {multiSelectMode && (
                     <Button
                       size="sm"
                       variant="ghost"
-                      className="h-6 text-[10px] text-muted-foreground"
+                      className="h-6 text-[10px] text-muted-foreground shrink-0"
                       onClick={() => {
-                        const tierHoles = holes.filter((h) => h.rack === rack && h.tier === tier);
                         setMultiSelectedIds((prev) => {
                           const next = new Set(prev);
                           const allSelected = tierHoles.every((h) => next.has(h.id));
@@ -376,17 +629,29 @@ export function RackMap({ holes, cycles, crops }: RackMapProps) {
                         });
                       }}
                     >
-                      Pilih Semua Tingkat
+                      {t("rmap.select_all_tier")}
                     </Button>
                   )}
                 </div>
                 <div className="p-3 space-y-2">
                   {RACK_CONFIG.lanes.map((lane) => {
                     const laneHoles = getHolesForLane(rack, tier, lane);
+                    const laneActive = laneHoles.filter((h) => h.status === "planted" || h.status === "growing" || h.status === "ready_harvest").length;
+                    const laneBreakdown: Record<HoleStatus, number> = {
+                      empty: 0, planted: 0, growing: 0, ready_harvest: 0, harvested: 0, maintenance: 0,
+                    };
+                    laneHoles.forEach((h) => { laneBreakdown[h.status as HoleStatus] = (laneBreakdown[h.status as HoleStatus] ?? 0) + 1; });
+                    const LANE_STATUS_HEX: Record<HoleStatus, string> = {
+                      empty: "#3a3d45", planted: "#638cff", growing: "#4ade80",
+                      ready_harvest: "#f59e0b", harvested: "#2dd4bf", maintenance: "#ef4444",
+                    };
+                    const laneTotal = laneHoles.length || 1;
+                    const activePct = Math.round((laneActive / laneTotal) * 100);
+
                     return (
                       <div key={lane} className="flex items-center gap-2">
                         <span className="text-[11px] text-muted-foreground w-6 shrink-0 font-medium">L{lane}</span>
-                        <div className="flex-1 overflow-x-auto scrollbar-none">
+                        <div className="overflow-x-auto scrollbar-none">
                           <div className="flex gap-1 min-w-max">
                             {laneHoles
                               .sort((a, b) => a.hole_number - b.hole_number)
@@ -399,6 +664,7 @@ export function RackMap({ holes, cycles, crops }: RackMapProps) {
                                   isSelected={selectedHoleId === hole.id}
                                   isMultiSelected={multiSelectedIds.has(hole.id)}
                                   multiSelectMode={multiSelectMode}
+                                  researchTag={researchAllocations[hole.id]}
                                   onClick={() => handleCellClick(hole)}
                                   onDragStart={handleDragStart}
                                   onDragEnter={handleDragEnter}
@@ -406,12 +672,34 @@ export function RackMap({ holes, cycles, crops }: RackMapProps) {
                               ))}
                           </div>
                         </div>
+                        {/* Per-lane status indicator (fills dead space at right) */}
+                        <div className="hidden xl:flex items-center gap-2 flex-1 min-w-0 justify-end pl-3">
+                          <div className="flex-1 h-1.5 rounded-full overflow-hidden flex bg-secondary/40 max-w-[120px]">
+                            {(Object.keys(laneBreakdown) as HoleStatus[]).map((k) => {
+                              const pct = (laneBreakdown[k] / laneTotal) * 100;
+                              if (pct === 0) return null;
+                              return (
+                                <div
+                                  key={k}
+                                  title={`${t(HOLE_STATUS[k].labelKey)}: ${laneBreakdown[k]}`}
+                                  style={{ width: `${pct}%`, backgroundColor: LANE_STATUS_HEX[k] }}
+                                  className="h-full"
+                                />
+                              );
+                            })}
+                          </div>
+                          <span className="text-[10px] text-muted-foreground tabular-nums whitespace-nowrap w-14 text-right">
+                            <span className="text-foreground font-medium">{laneActive}</span>
+                            <span className="opacity-60">/{laneTotal} ({activePct}%)</span>
+                          </span>
+                        </div>
                       </div>
                     );
                   })}
                 </div>
               </div>
-            ))}
+              );
+            })}
           </TabsContent>
         ))}
       </Tabs>
@@ -429,134 +717,390 @@ export function RackMap({ holes, cycles, crops }: RackMapProps) {
         onClose={() => setSelectedHoleId(null)}
       />
 
-      {/* Bulk planting dialog */}
-      <Dialog open={showBulkPlant} onOpenChange={(v) => { if (!v) setShowBulkPlant(false); }}>
-        <DialogContent showCloseButton={true} className="sm:max-w-[420px] bg-card border-border/50 p-0 gap-0">
+      {/* Bulk planting dialog — 3 step flow */}
+      <Dialog open={showBulkPlant} onOpenChange={(v) => { if (!v) { setShowBulkPlant(false); resetBulkPlant(); } }}>
+        <DialogContent showCloseButton={true} className="sm:max-w-[480px] bg-card border-border/50 p-0 gap-0">
           <DialogHeader className="px-5 pt-5 pb-3">
             <DialogTitle className="text-base font-semibold text-foreground">
-              Tanam {multiSelectedIds.size} Lubang Sekaligus
+              {bulkStep === "setup" && t("rmap.bulk_plant_title").replace("{n}", String(bulkOrderedHoleIds.length))}
+              {bulkStep === "capture" && t("rmap.photo_evidence_title")}
+              {bulkStep === "review" && t("rmap.review_confirm")}
             </DialogTitle>
             <p className="text-[12px] text-muted-foreground mt-1">
-              {Array.from(multiSelectedIds).slice(0, 5).map((id) => {
-                const h = holes.find((x) => x.id === id);
-                return h?.canonical_id;
-              }).join(", ")}
-              {multiSelectedIds.size > 5 && ` +${multiSelectedIds.size - 5} lainnya`}
+              {bulkStep === "setup" && (
+                <>
+                  {bulkOrderedHoleIds.slice(0, 5).map((id) => holes.find((h) => h.id === id)?.canonical_id).join(", ")}
+                  {bulkOrderedHoleIds.length > 5 && ` ${t("rmap.n_others").replace("{n}", String(bulkOrderedHoleIds.length - 5))}`}
+                </>
+              )}
+              {bulkStep === "capture" && t("rmap.capture_hint")}
+              {bulkStep === "review" && t("rmap.review_hint")}
             </p>
           </DialogHeader>
           <Separator className="bg-border/30" />
-          <div className="px-5 py-4 space-y-4 max-h-[60vh] overflow-y-auto">
-            {/* Crop */}
-            <div className="space-y-2">
-              <Label className="text-[13px] text-muted-foreground">Komoditas <span className="text-destructive">*</span></Label>
-              <Select value={bulkCropId} onValueChange={(v) => { if (v !== null) { setBulkCropId(v); setBulkErrors((p) => ({ ...p, crop: "" })); } }}>
-                <SelectTrigger className={`h-11 bg-secondary border-border/50 ${bulkErrors.crop ? "border-destructive" : ""}`}>
-                  <SelectValue placeholder="Pilih komoditas...">{getCropDisplayName()}</SelectValue>
-                </SelectTrigger>
-                <SelectContent>
-                  {crops.map((crop) => (
-                    <SelectItem key={crop.id} value={String(crop.id)}>
-                      {crop.name_id} ({crop.grow_duration_days} hari)
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              {bulkErrors.crop && <p className="text-[11px] text-destructive">{bulkErrors.crop}</p>}
-            </div>
 
-            {/* Photo */}
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <Label className="text-[13px] text-muted-foreground">Foto <span className="text-destructive">*</span></Label>
-                <Button type="button" size="sm" variant="outline" className="h-7 text-[11px] border-border/50"
-                  onClick={() => fileInputRef.current?.click()}>
-                  <Camera className="h-3 w-3 mr-1" /> Ambil Foto
+          {/* ===== STEP 1: SETUP ===== */}
+          {bulkStep === "setup" && (
+            <div className="px-5 py-4 space-y-4 max-h-[60vh] overflow-y-auto">
+              <div className="space-y-2">
+                <Label className="text-[13px] text-muted-foreground">{t("rmap.commodity")} <span className="text-destructive">*</span></Label>
+                <Select value={bulkCropId} onValueChange={(v) => { if (v !== null) { setBulkCropId(v); setBulkErrors((p) => ({ ...p, crop: "" })); } }}>
+                  <SelectTrigger className={`h-11 bg-secondary border-border/50 ${bulkErrors.crop ? "border-destructive" : ""}`}>
+                    <SelectValue placeholder={t("rmap.select_commodity")}>{getCropDisplayName()}</SelectValue>
+                  </SelectTrigger>
+                  <SelectContent>
+                    {crops.map((crop) => (
+                      <SelectItem key={crop.id} value={String(crop.id)}>
+                        {crop.name_id} ({crop.grow_duration_days} {t("unit.days")})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {bulkErrors.crop && <p className="text-[11px] text-destructive">{bulkErrors.crop}</p>}
+              </div>
+
+              <div className="space-y-2">
+                <Label className="text-[13px] text-muted-foreground">{t("rmap.notes_general")}</Label>
+                <Textarea className="bg-secondary border-border/50 text-foreground placeholder:text-muted-foreground/50"
+                  placeholder={t("rmap.notes_placeholder")} value={bulkNotes} onChange={(e) => setBulkNotes(e.target.value)} rows={2} />
+              </div>
+
+              <div className="rounded-md bg-secondary/30 border border-border/30 p-3 text-[12px] text-muted-foreground">
+                <span className="text-foreground">{t("rmap.next_step")}</span> {t("rmap.photo_evidence_for")}
+                {" "}<span className="text-foreground font-medium">{bulkOrderedHoleIds.length} {t("rmap.holes_word")}</span>
+                {" "}{t("rmap.in_order")}{Math.max(5, bulkOrderedHoleIds.length * 6)} {t("rmap.seconds")}
+              </div>
+
+              <Button className="w-full h-11 bg-primary hover:bg-primary/90 text-white"
+                onClick={() => {
+                  if (!bulkCropId) { setBulkErrors({ crop: t("rmap.choose_commodity") }); return; }
+                  setBulkStep("capture");
+                  setBulkCaptureIndex(0);
+                }}>
+                {t("rmap.next_to_photo")}
+              </Button>
+            </div>
+          )}
+
+          {/* ===== STEP 2: CAPTURE ===== */}
+          {bulkStep === "capture" && (() => {
+            const currentHoleId = bulkOrderedHoleIds[bulkCaptureIndex];
+            const currentHole = holes.find((h) => h.id === currentHoleId);
+            const currentPhoto = currentHoleId != null ? bulkPhotoMap.get(currentHoleId) : undefined;
+            const capturedCount = bulkPhotoMap.size;
+            return (
+              <div className="px-5 py-4 space-y-4">
+                {/* Progress dots */}
+                <div className="flex items-center justify-center gap-1.5 flex-wrap">
+                  {bulkOrderedHoleIds.map((id, i) => {
+                    const hasPhoto = bulkPhotoMap.has(id);
+                    const isActive = i === bulkCaptureIndex;
+                    return (
+                      <button
+                        key={id}
+                        type="button"
+                        onClick={() => setBulkCaptureIndex(i)}
+                        className={`h-2 w-2 rounded-full transition-all ${
+                          isActive ? "w-6 bg-primary" : hasPhoto ? "bg-emerald-400" : "bg-border/60"
+                        }`}
+                        aria-label={t("rmap.hole_aria") + " " + (i + 1)}
+                      />
+                    );
+                  })}
+                </div>
+
+                <div className="text-center space-y-1">
+                  <p className="text-[11px] uppercase tracking-wider text-muted-foreground">
+                    {t("rmap.photo_n_of").replace(/\s*$/, "")} {bulkCaptureIndex + 1} {t("rmap.of")} {bulkOrderedHoleIds.length}
+                    {capturedCount > 0 && ` · ${capturedCount} ${t("rmap.already_photo")}`}
+                  </p>
+                  <p className="text-xl font-semibold text-foreground tabular-nums">
+                    {currentHole?.canonical_id ?? "-"}
+                  </p>
+                </div>
+
+                {/* Preview */}
+                <div className="aspect-[4/3] rounded-lg bg-secondary/40 border border-dashed border-border/40 overflow-hidden flex items-center justify-center">
+                  {currentPhoto ? (
+                    <img src={currentPhoto.dataUrl} alt="" className="w-full h-full object-cover" />
+                  ) : (
+                    <div className="flex flex-col items-center gap-2 text-muted-foreground">
+                      <Camera className="h-8 w-8" />
+                      <p className="text-[12px]">{t("rmap.no_photo")}</p>
+                    </div>
+                  )}
+                </div>
+
+                {/* Actions */}
+                <div className="flex gap-2">
+                  {currentPhoto ? (
+                    <>
+                      <Button type="button" variant="outline" className="flex-1 h-11 border-border/50"
+                        onClick={() => fileInputRef.current?.click()}>
+                        <RotateCcw className="h-4 w-4 mr-2" /> {t("rmap.retake")}
+                      </Button>
+                      <Button type="button" className="flex-1 h-11 bg-primary hover:bg-primary/90 text-white"
+                        onClick={() => {
+                          const nextIdx = findNextUncapturedIndex(bulkCaptureIndex, currentHoleId!);
+                          if (nextIdx !== -1) setBulkCaptureIndex(nextIdx);
+                          else setBulkStep("review");
+                        }}>
+                        {findNextUncapturedIndex(bulkCaptureIndex, currentHoleId!) === -1 ? t("rmap.done") : t("rmap.next")}
+                      </Button>
+                    </>
+                  ) : (
+                    <Button type="button" className="flex-1 h-11 bg-primary hover:bg-primary/90 text-white"
+                      onClick={() => fileInputRef.current?.click()}>
+                      <Camera className="h-4 w-4 mr-2" /> {t("hole.take_photo")}
+                    </Button>
+                  )}
+                </div>
+
+                {/* Nav */}
+                <div className="flex items-center justify-between pt-1">
+                  <Button type="button" variant="ghost" size="sm" className="h-8 text-[12px] text-muted-foreground"
+                    disabled={bulkCaptureIndex === 0}
+                    onClick={() => setBulkCaptureIndex((i) => Math.max(0, i - 1))}>
+                    <ChevronLeft className="h-3.5 w-3.5 mr-1" /> {t("rmap.previous")}
+                  </Button>
+                  <Button type="button" variant="ghost" size="sm" className="h-8 text-[12px] text-muted-foreground"
+                    onClick={() => setBulkStep("review")}>
+                    {t("rmap.review_all")} ({capturedCount}/{bulkOrderedHoleIds.length})
+                  </Button>
+                  <Button type="button" variant="ghost" size="sm" className="h-8 text-[12px] text-muted-foreground"
+                    disabled={bulkCaptureIndex === bulkOrderedHoleIds.length - 1}
+                    onClick={() => setBulkCaptureIndex((i) => Math.min(bulkOrderedHoleIds.length - 1, i + 1))}>
+                    {t("rmap.next_btn")} <ChevronRight className="h-3.5 w-3.5 ml-1" />
+                  </Button>
+                </div>
+              </div>
+            );
+          })()}
+
+          {/* ===== STEP 3: REVIEW ===== */}
+          {bulkStep === "review" && (
+            <div className="px-5 py-4 space-y-4 max-h-[65vh] overflow-y-auto">
+              <div className="grid grid-cols-3 gap-2">
+                {bulkOrderedHoleIds.map((id) => {
+                  const h = holes.find((x) => x.id === id);
+                  const photo = bulkPhotoMap.get(id);
+                  return (
+                    <button
+                      key={id}
+                      type="button"
+                      onClick={() => retakePhoto(id)}
+                      className="relative rounded-lg overflow-hidden bg-secondary aspect-square group border border-border/40 hover:border-primary/60 transition-colors"
+                    >
+                      {photo ? (
+                        <>
+                          <img src={photo.dataUrl} alt="" className="w-full h-full object-cover" />
+                          <div className="absolute top-1 right-1 h-4 w-4 rounded-full bg-emerald-500 flex items-center justify-center">
+                            <Check className="h-2.5 w-2.5 text-white" />
+                          </div>
+                        </>
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center">
+                          <Camera className="h-5 w-5 text-destructive" />
+                        </div>
+                      )}
+                      <div className="absolute bottom-0 inset-x-0 bg-black/60 px-1 py-0.5">
+                        <p className="text-[10px] text-white font-medium tabular-nums truncate">
+                          {h?.canonical_id}
+                        </p>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {bulkErrors.photos && (
+                <p className="text-[12px] text-destructive text-center">{bulkErrors.photos}</p>
+              )}
+
+              <div className="flex gap-2 pt-1">
+                <Button type="button" variant="outline" className="flex-1 h-11 border-border/50"
+                  onClick={() => setBulkStep("capture")} disabled={bulkLoading}>
+                  {t("rmap.back_to_photo")}
+                </Button>
+                <Button type="button" className="flex-[2] h-11 bg-primary hover:bg-primary/90 text-white"
+                  onClick={handleBulkPlant}
+                  disabled={bulkLoading || bulkPhotoMap.size < bulkOrderedHoleIds.length}>
+                  {bulkLoading
+                    ? t("rmap.processing")
+                    : bulkPhotoMap.size < bulkOrderedHoleIds.length
+                      ? `${bulkOrderedHoleIds.length - bulkPhotoMap.size} ${t("rmap.photos_short")}`
+                      : t("rmap.plant_n_holes").replace("{n}", String(bulkOrderedHoleIds.length))}
                 </Button>
               </div>
-              {bulkPhotos.length > 0 ? (
-                <div className="grid grid-cols-4 gap-1.5">
-                  {bulkPhotos.map((p, i) => (
-                    <div key={i} className="relative rounded-lg overflow-hidden bg-secondary aspect-square group">
-                      <img src={p.dataUrl} alt="" className="w-full h-full object-cover" />
-                      <button type="button" onClick={() => setBulkPhotos((prev) => prev.filter((_, idx) => idx !== i))}
-                        className="absolute top-0.5 right-0.5 h-4 w-4 rounded-full bg-black/60 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                        <X className="h-2.5 w-2.5 text-white" />
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <p className={`text-[11px] ${bulkErrors.photos ? "text-destructive" : "text-muted-foreground"}`}>
-                  {bulkErrors.photos || "Ambil minimal 1 foto sebagai bukti."}
-                </p>
-              )}
             </div>
-
-            {/* Notes */}
-            <div className="space-y-2">
-              <Label className="text-[13px] text-muted-foreground">Catatan (opsional)</Label>
-              <Textarea className="bg-secondary border-border/50 text-foreground placeholder:text-muted-foreground/50"
-                placeholder="Catatan penanaman..." value={bulkNotes} onChange={(e) => setBulkNotes(e.target.value)} rows={2} />
-            </div>
-
-            <Button className="w-full h-11 bg-[oklch(0.65_0.18_260)] hover:bg-[oklch(0.60_0.20_260)] text-white"
-              onClick={handleBulkPlant} disabled={bulkLoading}>
-              {bulkLoading ? "Memproses..." : `Tanam ${multiSelectedIds.size} Lubang`}
-            </Button>
-          </div>
+          )}
         </DialogContent>
       </Dialog>
 
       {/* Hidden file input for bulk action photos */}
       <input ref={actionFileInputRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={handleBulkActionPhotoCapture} />
 
-      {/* Bulk action (status change) dialog */}
-      <Dialog open={showBulkAction} onOpenChange={(v) => { if (!v) { setShowBulkAction(false); setBulkAction(""); setBulkActionPhotos([]); setBulkActionErrors({}); } }}>
-        <DialogContent showCloseButton={true} className="sm:max-w-[420px] bg-card border-border/50 p-0 gap-0">
+      {/* Bulk action (status change) dialog — per-hole photo capture */}
+      <Dialog open={showBulkAction} onOpenChange={(v) => { if (!v) { setShowBulkAction(false); resetBulkAction(); } }}>
+        <DialogContent showCloseButton={true} className="sm:max-w-[480px] bg-card border-border/50 p-0 gap-0">
           <DialogHeader className="px-5 pt-5 pb-3">
             <DialogTitle className="text-base font-semibold text-foreground">
-              Ubah {multiSelectedIds.size} Lubang ke {HOLE_STATUS[bulkAction as HoleStatus]?.label ?? ""}
+              {bulkActionStep === "capture"
+                ? t("rmap.photo_status").replace("{status}", bulkAction ? t(HOLE_STATUS[bulkAction as HoleStatus].labelKey) : "")
+                : t("rmap.review_change")
+                    .replace("{n}", String(bulkActionOrderedHoleIds.length))
+                    .replace("{status}", bulkAction ? t(HOLE_STATUS[bulkAction as HoleStatus].labelKey) : "")}
             </DialogTitle>
             <p className="text-[12px] text-muted-foreground mt-1">
-              {Array.from(multiSelectedIds).slice(0, 5).map((id) => holes.find((x) => x.id === id)?.canonical_id).join(", ")}
-              {multiSelectedIds.size > 5 && ` +${multiSelectedIds.size - 5} lainnya`}
+              {bulkActionStep === "capture"
+                ? t("rmap.capture_status_hint")
+                : t("rmap.review_hint")}
             </p>
           </DialogHeader>
           <Separator className="bg-border/30" />
-          <div className="px-5 py-4 space-y-4">
-            {/* Photo */}
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <Label className="text-[13px] text-muted-foreground">Foto Konfirmasi <span className="text-destructive">*</span></Label>
-                <Button type="button" size="sm" variant="outline" className="h-7 text-[11px] border-border/50"
-                  onClick={() => actionFileInputRef.current?.click()}>
-                  <Camera className="h-3 w-3 mr-1" /> Ambil Foto
+
+          {/* ===== CAPTURE ===== */}
+          {bulkActionStep === "capture" && (() => {
+            const currentHoleId = bulkActionOrderedHoleIds[bulkActionCaptureIndex];
+            const currentHole = holes.find((h) => h.id === currentHoleId);
+            const currentPhoto = currentHoleId != null ? bulkActionPhotoMap.get(currentHoleId) : undefined;
+            const capturedCount = bulkActionPhotoMap.size;
+            const isLastUncaptured = findNextUncapturedIndexInMap(bulkActionPhotoMap, bulkActionOrderedHoleIds, bulkActionCaptureIndex, currentHoleId!) === -1;
+            return (
+              <div className="px-5 py-4 space-y-4">
+                <div className="flex items-center justify-center gap-1.5 flex-wrap">
+                  {bulkActionOrderedHoleIds.map((id, i) => {
+                    const hasPhoto = bulkActionPhotoMap.has(id);
+                    const isActive = i === bulkActionCaptureIndex;
+                    return (
+                      <button key={id} type="button" onClick={() => setBulkActionCaptureIndex(i)}
+                        className={`h-2 w-2 rounded-full transition-all ${
+                          isActive ? "w-6 bg-primary" : hasPhoto ? "bg-emerald-400" : "bg-border/60"
+                        }`}
+                        aria-label={t("rmap.hole_aria") + " " + (i + 1)}
+                      />
+                    );
+                  })}
+                </div>
+
+                <div className="text-center space-y-1">
+                  <p className="text-[11px] uppercase tracking-wider text-muted-foreground">
+                    {t("rmap.photo_n_of").replace(/\s*$/, "")} {bulkActionCaptureIndex + 1} {t("rmap.of")} {bulkActionOrderedHoleIds.length}
+                    {capturedCount > 0 && ` · ${capturedCount} ${t("rmap.already_photo")}`}
+                  </p>
+                  <p className="text-xl font-semibold text-foreground tabular-nums">
+                    {currentHole?.canonical_id ?? "-"}
+                  </p>
+                </div>
+
+                <div className="aspect-[4/3] rounded-lg bg-secondary/40 border border-dashed border-border/40 overflow-hidden flex items-center justify-center">
+                  {currentPhoto ? (
+                    <img src={currentPhoto.dataUrl} alt="" className="w-full h-full object-cover" />
+                  ) : (
+                    <div className="flex flex-col items-center gap-2 text-muted-foreground">
+                      <Camera className="h-8 w-8" />
+                      <p className="text-[12px]">{t("rmap.no_photo")}</p>
+                    </div>
+                  )}
+                </div>
+
+                <div className="flex gap-2">
+                  {currentPhoto ? (
+                    <>
+                      <Button type="button" variant="outline" className="flex-1 h-11 border-border/50"
+                        onClick={() => actionFileInputRef.current?.click()}>
+                        <RotateCcw className="h-4 w-4 mr-2" /> {t("rmap.retake")}
+                      </Button>
+                      <Button type="button" className="flex-1 h-11 bg-primary hover:bg-primary/90 text-white"
+                        onClick={() => {
+                          const nextIdx = findNextUncapturedIndexInMap(bulkActionPhotoMap, bulkActionOrderedHoleIds, bulkActionCaptureIndex, currentHoleId!);
+                          if (nextIdx !== -1) setBulkActionCaptureIndex(nextIdx);
+                          else setBulkActionStep("review");
+                        }}>
+                        {isLastUncaptured ? t("rmap.done") : t("rmap.next")}
+                      </Button>
+                    </>
+                  ) : (
+                    <Button type="button" className="flex-1 h-11 bg-primary hover:bg-primary/90 text-white"
+                      onClick={() => actionFileInputRef.current?.click()}>
+                      <Camera className="h-4 w-4 mr-2" /> {t("hole.take_photo")}
+                    </Button>
+                  )}
+                </div>
+
+                <div className="flex items-center justify-between pt-1">
+                  <Button type="button" variant="ghost" size="sm" className="h-8 text-[12px] text-muted-foreground"
+                    disabled={bulkActionCaptureIndex === 0}
+                    onClick={() => setBulkActionCaptureIndex((i) => Math.max(0, i - 1))}>
+                    <ChevronLeft className="h-3.5 w-3.5 mr-1" /> {t("rmap.previous")}
+                  </Button>
+                  <Button type="button" variant="ghost" size="sm" className="h-8 text-[12px] text-muted-foreground"
+                    onClick={() => setBulkActionStep("review")}>
+                    {t("rmap.review_all")} ({capturedCount}/{bulkActionOrderedHoleIds.length})
+                  </Button>
+                  <Button type="button" variant="ghost" size="sm" className="h-8 text-[12px] text-muted-foreground"
+                    disabled={bulkActionCaptureIndex === bulkActionOrderedHoleIds.length - 1}
+                    onClick={() => setBulkActionCaptureIndex((i) => Math.min(bulkActionOrderedHoleIds.length - 1, i + 1))}>
+                    {t("rmap.next_btn")} <ChevronRight className="h-3.5 w-3.5 ml-1" />
+                  </Button>
+                </div>
+              </div>
+            );
+          })()}
+
+          {/* ===== REVIEW ===== */}
+          {bulkActionStep === "review" && (
+            <div className="px-5 py-4 space-y-4 max-h-[65vh] overflow-y-auto">
+              <div className="grid grid-cols-3 gap-2">
+                {bulkActionOrderedHoleIds.map((id) => {
+                  const h = holes.find((x) => x.id === id);
+                  const photo = bulkActionPhotoMap.get(id);
+                  return (
+                    <button key={id} type="button" onClick={() => retakeActionPhoto(id)}
+                      className="relative rounded-lg overflow-hidden bg-secondary aspect-square group border border-border/40 hover:border-primary/60 transition-colors">
+                      {photo ? (
+                        <>
+                          <img src={photo.dataUrl} alt="" className="w-full h-full object-cover" />
+                          <div className="absolute top-1 right-1 h-4 w-4 rounded-full bg-emerald-500 flex items-center justify-center">
+                            <Check className="h-2.5 w-2.5 text-white" />
+                          </div>
+                        </>
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center">
+                          <Camera className="h-5 w-5 text-destructive" />
+                        </div>
+                      )}
+                      <div className="absolute bottom-0 inset-x-0 bg-black/60 px-1 py-0.5">
+                        <p className="text-[10px] text-white font-medium tabular-nums truncate">
+                          {h?.canonical_id}
+                        </p>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {bulkActionErrors.photos && (
+                <p className="text-[12px] text-destructive text-center">{bulkActionErrors.photos}</p>
+              )}
+
+              <div className="flex gap-2 pt-1">
+                <Button type="button" variant="outline" className="flex-1 h-11 border-border/50"
+                  onClick={() => setBulkActionStep("capture")} disabled={bulkActionLoading}>
+                  {t("rmap.back_to_photo")}
+                </Button>
+                <Button type="button" className="flex-[2] h-11 bg-primary hover:bg-primary/90 text-white"
+                  onClick={handleBulkActionSubmit}
+                  disabled={bulkActionLoading || bulkActionPhotoMap.size < bulkActionOrderedHoleIds.length}>
+                  {bulkActionLoading
+                    ? t("rmap.processing")
+                    : bulkActionPhotoMap.size < bulkActionOrderedHoleIds.length
+                      ? `${bulkActionOrderedHoleIds.length - bulkActionPhotoMap.size} ${t("rmap.photos_short")}`
+                      : t("rmap.change_n_holes").replace("{n}", String(bulkActionOrderedHoleIds.length))}
                 </Button>
               </div>
-              {bulkActionPhotos.length > 0 ? (
-                <div className="grid grid-cols-4 gap-1.5">
-                  {bulkActionPhotos.map((p, i) => (
-                    <div key={i} className="relative rounded-lg overflow-hidden bg-secondary aspect-square group">
-                      <img src={p.dataUrl} alt="" className="w-full h-full object-cover" />
-                      <button type="button" onClick={() => setBulkActionPhotos((prev) => prev.filter((_, idx) => idx !== i))}
-                        className="absolute top-0.5 right-0.5 h-4 w-4 rounded-full bg-black/60 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                        <X className="h-2.5 w-2.5 text-white" />
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <p className={`text-[11px] ${bulkActionErrors.photos ? "text-destructive" : "text-muted-foreground"}`}>
-                  {bulkActionErrors.photos || "Ambil minimal 1 foto sebagai bukti."}
-                </p>
-              )}
             </div>
-
-            <Button className="w-full h-11 bg-[oklch(0.65_0.18_260)] hover:bg-[oklch(0.60_0.20_260)] text-white"
-              onClick={handleBulkActionSubmit} disabled={bulkActionLoading}>
-              {bulkActionLoading ? "Memproses..." : `Ubah ${multiSelectedIds.size} Lubang`}
-            </Button>
-          </div>
+          )}
         </DialogContent>
       </Dialog>
     </>
