@@ -39,3 +39,10 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# claude code per-user local settings
+.claude/settings.local.json
+
+# Design/brand references & scratch working files (may contain credentials,
+# large binaries, or internal docs not meant for the repo)
+/reference/

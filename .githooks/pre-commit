@@ -1,0 +1,19 @@
+#!/usr/bin/env sh
+# Pre-commit hook: fail fast on TypeScript errors before commit lands.
+# Enable for this repo (run once):
+#   git config core.hooksPath .githooks
+#
+# To skip this check for a single commit (rarely needed):
+#   git commit --no-verify
+
+set -e
+
+# Only typecheck if there are staged .ts/.tsx changes — avoids paying the
+# ~20s tsc bill on commits that only touch docs/config.
+if git diff --cached --name-only --diff-filter=ACMR | grep -qE '\.tsx?$'; then
+  echo "[pre-commit] Running bun x tsc --noEmit ..."
+  bun x tsc --noEmit
+  echo "[pre-commit] OK"
+else
+  echo "[pre-commit] No TS/TSX changes staged — skipping typecheck."
+fi
