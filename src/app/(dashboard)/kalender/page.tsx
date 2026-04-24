@@ -30,6 +30,7 @@ import {
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { useLang } from "@/lib/i18n";
+import { RoleGate } from "@/components/role-gate";
 
 /* ------------------------------------------------------------------ */
 /*  Types & constants                                                  */
@@ -901,14 +902,16 @@ export default function KalenderPage() {
               ))}
             </div>
 
-            <Button
-              size="sm"
-              className="h-8 text-[12px] gap-1.5 rounded-full bg-amber-400 hover:bg-amber-500 text-zinc-900 font-semibold shadow-md shadow-amber-500/20"
-              onClick={() => toast.info(t("common.coming_soon"))}
-            >
-              <Plus className="size-3.5" />
-              <span className="hidden sm:inline">{t("cal.create_event")}</span>
-            </Button>
+            <RoleGate roles={["admin", "operator"]} fallback={null}>
+              <Button
+                size="sm"
+                className="h-8 text-[12px] gap-1.5 rounded-full bg-amber-400 hover:bg-amber-500 text-zinc-900 font-semibold shadow-md shadow-amber-500/20"
+                onClick={() => toast.info(t("common.coming_soon"))}
+              >
+                <Plus className="size-3.5" />
+                <span className="hidden sm:inline">{t("cal.create_event")}</span>
+              </Button>
+            </RoleGate>
           </div>
         </div>
 

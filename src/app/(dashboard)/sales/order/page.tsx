@@ -13,6 +13,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Separator } from "@/components/ui/separator";
 import { toast } from "sonner";
 import { Plus, ArrowUpDown, List, LayoutGrid, ShoppingCart, Trash2, Printer, AlertTriangle } from "lucide-react";
+import { RoleGate } from "@/components/role-gate";
 import { useLang } from "@/lib/i18n";
 import { translateCommodity } from "@/lib/translate-helpers";
 
@@ -258,9 +259,11 @@ export default function SalesOrderPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-lg font-semibold text-foreground">{t("sales.dashboard")}</h1>
-        <Button className="h-9 bg-primary text-white text-[13px] hover:bg-primary/90" onClick={() => { resetForm(); setCreateOpen(true); }}>
-          <Plus className="w-4 h-4 mr-1.5" />{t("sales.create_order")}
-        </Button>
+        <RoleGate roles={["admin", "operator"]} fallback={null}>
+          <Button className="h-9 bg-primary text-white text-[13px] hover:bg-primary/90" onClick={() => { resetForm(); setCreateOpen(true); }}>
+            <Plus className="w-4 h-4 mr-1.5" />{t("sales.create_order")}
+          </Button>
+        </RoleGate>
       </div>
       {/* Toolbar */}
       <div className="flex flex-wrap items-center gap-3">
@@ -499,22 +502,26 @@ export default function SalesOrderPage() {
             </div>
             <Separator />
             {/* Status update */}
-            <div className="space-y-2">
-              <Label className="text-[13px] text-muted-foreground">{t("sales.update_status")}</Label>
-              <div className="flex items-center gap-3">
-                <Select value={detailStatus} onValueChange={(v) => v !== null && setDetailStatus(v)}>
-                  <SelectTrigger className="h-9 bg-secondary border-border/50 text-[13px] flex-1"><SelectValue>{ORDER_STATUS_LABEL[detailStatus] ?? detailStatus}</SelectValue></SelectTrigger>
-                  <SelectContent>{Object.keys(ORDER_STATUS_COLOR).map((k) => <SelectItem key={k} value={k}>{ORDER_STATUS_LABEL[k]}</SelectItem>)}</SelectContent>
-                </Select>
-                <Button className="h-9 bg-primary text-white text-[13px] hover:bg-primary/90" onClick={handleStatusUpdate} disabled={updatingStatus || detailStatus === detailOrder.status}>{updatingStatus ? t("common.saving") : t("common.save")}</Button>
+            <RoleGate roles={["admin", "operator"]} fallback={null}>
+              <div className="space-y-2">
+                <Label className="text-[13px] text-muted-foreground">{t("sales.update_status")}</Label>
+                <div className="flex items-center gap-3">
+                  <Select value={detailStatus} onValueChange={(v) => v !== null && setDetailStatus(v)}>
+                    <SelectTrigger className="h-9 bg-secondary border-border/50 text-[13px] flex-1"><SelectValue>{ORDER_STATUS_LABEL[detailStatus] ?? detailStatus}</SelectValue></SelectTrigger>
+                    <SelectContent>{Object.keys(ORDER_STATUS_COLOR).map((k) => <SelectItem key={k} value={k}>{ORDER_STATUS_LABEL[k]}</SelectItem>)}</SelectContent>
+                  </Select>
+                  <Button className="h-9 bg-primary text-white text-[13px] hover:bg-primary/90" onClick={handleStatusUpdate} disabled={updatingStatus || detailStatus === detailOrder.status}>{updatingStatus ? t("common.saving") : t("common.save")}</Button>
+                </div>
               </div>
-            </div>
+            </RoleGate>
             <Separator />
             {/* Payment logs */}
             <div className="space-y-3">
               <div className="flex items-center justify-between">
                 <Label className="text-[13px] text-muted-foreground font-medium">{t("sales.payments")}</Label>
-                <Button variant="outline" className="h-8 text-[12px]" onClick={() => setPayOpen((p) => !p)}><Plus className="w-3.5 h-3.5 mr-1" />{t("sales.record_payment")}</Button>
+                <RoleGate roles={["admin", "operator"]} fallback={null}>
+                  <Button variant="outline" className="h-8 text-[12px]" onClick={() => setPayOpen((p) => !p)}><Plus className="w-3.5 h-3.5 mr-1" />{t("sales.record_payment")}</Button>
+                </RoleGate>
               </div>
               {payLogs.length > 0 ? payLogs.map((p) => (
                 <div key={p.id} className="rounded-lg border border-border/40 bg-secondary/30 p-2.5 text-[12px]">

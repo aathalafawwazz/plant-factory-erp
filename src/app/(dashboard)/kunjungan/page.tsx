@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
+import { getCurrentUser } from "@/lib/auth-helpers";
 import { getServerT } from "@/lib/i18n-server";
 import { Button } from "@/components/ui/button";
 import {
@@ -20,6 +21,8 @@ const STATUS_ORDER: VisitStatus[] = ["scheduled", "confirmed", "ongoing", "compl
 export default async function KunjunganPage() {
   const t = await getServerT();
   const supabase = await createClient();
+  const currentUser = await getCurrentUser();
+  const canWrite = !!currentUser && ["admin", "operator"].includes(currentUser.role);
 
   const { data: visits } = await supabase
     .from("visits")
@@ -117,12 +120,14 @@ export default async function KunjunganPage() {
             {t("visit.subtitle")}
           </p>
         </div>
-        <Button asChild className="h-10 bg-primary hover:bg-primary/90 text-white shrink-0">
-          <Link href="/kunjungan/baru" className="inline-flex items-center gap-1.5 whitespace-nowrap">
-            <Plus className="h-4 w-4" />
-            {t("visit.record")}
-          </Link>
-        </Button>
+        {canWrite && (
+          <Button asChild className="h-10 bg-primary hover:bg-primary/90 text-white shrink-0">
+            <Link href="/kunjungan/baru" className="inline-flex items-center gap-1.5 whitespace-nowrap">
+              <Plus className="h-4 w-4" />
+              {t("visit.record")}
+            </Link>
+          </Button>
+        )}
       </div>
 
       {/* KPI cards */}

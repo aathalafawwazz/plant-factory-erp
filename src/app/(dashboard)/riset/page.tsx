@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { getServerT } from "@/lib/i18n-server";
+import { getCurrentUser } from "@/lib/auth-helpers";
 import { Button } from "@/components/ui/button";
 import {
   Plus, FlaskConical, Clock, Play, CheckCircle2, XCircle,
@@ -26,6 +27,10 @@ const STATUS_ORDER: ResearchStatus[] = ["proposed", "approved", "active", "pause
 export default async function RisetPage() {
   const t = await getServerT();
   const supabase = await createClient();
+  const currentUser = await getCurrentUser();
+  // Only admin, operator, or researcher may submit a new project.
+  // Supervisors review, they don't create. Viewer is read-only.
+  const canSubmit = !!currentUser && ["admin", "operator", "researcher"].includes(currentUser.role);
 
   const [projectsRes, allocRes] = await Promise.all([
     supabase
@@ -99,12 +104,14 @@ export default async function RisetPage() {
             {t("research.subtitle")}
           </p>
         </div>
-        <Button asChild className="h-10 bg-primary hover:bg-primary/90 text-white shrink-0">
-          <Link href="/riset/baru" className="inline-flex items-center gap-1.5 whitespace-nowrap">
-            <Plus className="h-4 w-4" />
-            {t("research.submit")}
-          </Link>
-        </Button>
+        {canSubmit && (
+          <Button asChild className="h-10 bg-primary hover:bg-primary/90 text-white shrink-0">
+            <Link href="/riset/baru" className="inline-flex items-center gap-1.5 whitespace-nowrap">
+              <Plus className="h-4 w-4" />
+              {t("research.submit")}
+            </Link>
+          </Button>
+        )}
       </div>
 
       {/* KPI cards */}

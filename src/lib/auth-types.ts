@@ -88,6 +88,18 @@ export const ROUTE_ROLE_GATES: Array<{
   { prefix: "/sales",        allowed: ["admin", "operator", "viewer"],    description: "Sales (viewer read-only)" },
   // Inventory — admin + operator + viewer
   { prefix: "/inventory",    allowed: ["admin", "operator", "viewer"],    description: "Inventory" },
+  // Cultivation — operational module; researchers/supervisors redirected.
+  { prefix: "/lubang",       allowed: ["admin", "operator", "viewer"],    description: "Hole map" },
+  { prefix: "/tanam",        allowed: ["admin", "operator", "viewer"],    description: "Planting" },
+  { prefix: "/panen",        allowed: ["admin", "operator", "viewer"],    description: "Harvest log" },
+  { prefix: "/lingkungan",   allowed: ["admin", "operator", "viewer"],    description: "Environment log" },
+  { prefix: "/nutrisi",      allowed: ["admin", "operator", "viewer"],    description: "Nutrient log" },
+  { prefix: "/komoditas",    allowed: ["admin", "operator", "viewer"],    description: "Commodity catalogue" },
+  { prefix: "/laporan",      allowed: ["admin", "operator", "viewer"],    description: "Cultivation reports" },
+  // Visits — researchers/supervisors not involved.
+  { prefix: "/kunjungan",    allowed: ["admin", "operator", "viewer"],    description: "Visits" },
+  // Research submission — only creators + staff. Supervisors review, not submit.
+  { prefix: "/riset/baru",   allowed: ["admin", "operator", "researcher"], description: "Research submission" },
   // Admin console
   { prefix: "/settings/users", allowed: ["admin"],                        description: "User management" },
 ];

@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
+import { getCurrentUser } from "@/lib/auth-helpers";
 import { getServerI18n } from "@/lib/i18n-server";
 import { translateCommodity, formatDateTimeLocale } from "@/lib/translate-helpers";
 import { Badge } from "@/components/ui/badge";
@@ -67,6 +68,8 @@ type TxnWithItem = InventoryTransaction & {
 export default async function InventoryDashboardPage() {
   const supabase = await createClient();
   const { t, lang } = await getServerI18n();
+  const currentUser = await getCurrentUser();
+  const canWrite = !!currentUser && ["admin", "operator"].includes(currentUser.role);
 
   const now = new Date();
   const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
@@ -241,12 +244,14 @@ export default async function InventoryDashboardPage() {
                         {Number(it.min_stock ?? 0)}
                       </TableCell>
                       <TableCell>
-                        <Link
-                          href={`/inventory/transaksi?item_id=${it.id}&type=in`}
-                          className="inline-flex items-center gap-1 text-[11px] text-primary hover:underline"
-                        >
-                          <Plus className="h-3 w-3" /> {t("inv.add_short")}
-                        </Link>
+                        {canWrite && (
+                          <Link
+                            href={`/inventory/transaksi?item_id=${it.id}&type=in`}
+                            className="inline-flex items-center gap-1 text-[11px] text-primary hover:underline"
+                          >
+                            <Plus className="h-3 w-3" /> {t("inv.add_short")}
+                          </Link>
+                        )}
                       </TableCell>
                     </TableRow>
                   ))}

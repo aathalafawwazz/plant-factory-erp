@@ -3,6 +3,7 @@
 import { useEffect, useState, useMemo, useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
+import { RoleGate } from "@/components/role-gate";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -289,14 +290,16 @@ export default function PelangganPage() {
             {t("sales.manage_customers")}
           </p>
         </div>
-        <Button
-          size="sm"
-          className="h-9 bg-primary hover:bg-primary/90 text-white text-[13px]"
-          onClick={openAddForm}
-        >
-          <Plus className="h-3.5 w-3.5 mr-1.5" />
-          {t("sales.add_customer")}
-        </Button>
+        <RoleGate roles={["admin", "operator"]} fallback={null}>
+          <Button
+            size="sm"
+            className="h-9 bg-primary hover:bg-primary/90 text-white text-[13px]"
+            onClick={openAddForm}
+          >
+            <Plus className="h-3.5 w-3.5 mr-1.5" />
+            {t("sales.add_customer")}
+          </Button>
+        </RoleGate>
       </div>
 
       {/* Search + Sort + View Toggle */}
@@ -506,16 +509,18 @@ export default function PelangganPage() {
                         </Button>
                       </a>
                     )}
-                    <Button
-                      variant="ghost"
-                      size="icon-sm"
-                      onClick={() => {
-                        setDetailOpen(false);
-                        openEditForm(selectedCustomer);
-                      }}
-                    >
-                      <Pencil className="size-4" />
-                    </Button>
+                    <RoleGate roles={["admin", "operator"]} fallback={null}>
+                      <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        onClick={() => {
+                          setDetailOpen(false);
+                          openEditForm(selectedCustomer);
+                        }}
+                      >
+                        <Pencil className="size-4" />
+                      </Button>
+                    </RoleGate>
                   </div>
                 </div>
               </DialogHeader>

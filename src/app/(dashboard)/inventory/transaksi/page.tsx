@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/client";
 import { useLang } from "@/lib/i18n";
 import { translateCommodity, formatDateTimeLocale } from "@/lib/translate-helpers";
 import { Button } from "@/components/ui/button";
+import { RoleGate } from "@/components/role-gate";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -254,14 +255,16 @@ function TransaksiPageInner() {
             {t("inv.txn_subtitle")}
           </p>
         </div>
-        <Button
-          size="sm"
-          className="h-9 bg-primary hover:bg-primary/90 text-white text-[13px]"
-          onClick={openAddForm}
-        >
-          <Plus className="h-3.5 w-3.5 mr-1.5" />
-          {t("inv.add_transaction")}
-        </Button>
+        <RoleGate roles={["admin", "operator"]} fallback={null}>
+          <Button
+            size="sm"
+            className="h-9 bg-primary hover:bg-primary/90 text-white text-[13px]"
+            onClick={openAddForm}
+          >
+            <Plus className="h-3.5 w-3.5 mr-1.5" />
+            {t("inv.add_transaction")}
+          </Button>
+        </RoleGate>
       </div>
 
       {/* Filters */}

@@ -41,6 +41,10 @@ const NAV_ITEMS: NavItem[] = [
     labelKey: "nav.cultivation",
     icon: Sprout,
     mobile: true,
+    // Cultivation is hidden from researchers & supervisors (they can still
+    // technically read holes via `<RoleGate>`-wrapped components that need
+    // them, but the module as a whole isn't part of their workflow).
+    roles: ["admin", "operator", "viewer"],
     children: [
       { href: "/lubang", labelKey: "nav.hole_map" },
       { href: "/panen", labelKey: "nav.harvest_log" },
@@ -89,7 +93,10 @@ const NAV_ITEMS: NavItem[] = [
     ],
   },
   { href: "/riset", labelKey: "nav.research", icon: FlaskConical },
-  { href: "/kunjungan", labelKey: "nav.visits", icon: UserCheck },
+  // Visits is operational — admin/operator schedule + record, viewer reads.
+  // Researchers focus on their projects; supervisors review. Neither
+  // touches tour / kunjungan so we hide the menu.
+  { href: "/kunjungan", labelKey: "nav.visits", icon: UserCheck, roles: ["admin", "operator", "viewer"] },
   { href: "/kalender", labelKey: "nav.calendar", icon: CalendarDays, mobile: true },
 ];
 
@@ -127,9 +134,9 @@ export function BottomNav() {
   const user = useCurrentUser();
   const visibleMobileItems = useMemo(() => {
     if (!user) return [];
-    // Hide /sales shortcut for researcher/supervisor.
     return MOBILE_ITEMS.filter((item) => {
       if (item.href === "/sales") return ["admin", "operator", "viewer"].includes(user.role);
+      if (item.href === "/lubang") return ["admin", "operator", "viewer"].includes(user.role);
       return true;
     });
   }, [user]);

@@ -364,14 +364,16 @@ export default function PengeluaranPage() {
             {t("exp.subtitle")}
           </p>
         </div>
-        <Button
-          size="sm"
-          className="h-9 bg-primary hover:bg-primary/90 text-white text-[13px]"
-          onClick={openAddForm}
-        >
-          <Plus className="h-3.5 w-3.5 mr-1.5" />
-          {t("exp.add")}
-        </Button>
+        <RoleGate roles={["admin", "operator"]} fallback={null}>
+          <Button
+            size="sm"
+            className="h-9 bg-primary hover:bg-primary/90 text-white text-[13px]"
+            onClick={openAddForm}
+          >
+            <Plus className="h-3.5 w-3.5 mr-1.5" />
+            {t("exp.add")}
+          </Button>
+        </RoleGate>
       </div>
 
       {/* Summary cards */}
@@ -498,21 +500,25 @@ export default function PengeluaranPage() {
                   </TableCell>
                   <TableCell>
                     <div className="flex items-center gap-1">
-                      <Button
-                        variant="ghost"
-                        size="icon-sm"
-                        onClick={() => openEditForm(e)}
-                      >
-                        <Pencil className="size-3.5" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon-sm"
-                        className="text-red-400 hover:text-red-300 hover:bg-red-500/10"
-                        onClick={() => openDelete(e)}
-                      >
-                        <Trash2 className="size-3.5" />
-                      </Button>
+                      <RoleGate roles={["admin", "operator"]} fallback={null}>
+                        <Button
+                          variant="ghost"
+                          size="icon-sm"
+                          onClick={() => openEditForm(e)}
+                        >
+                          <Pencil className="size-3.5" />
+                        </Button>
+                      </RoleGate>
+                      <RoleGate roles="admin" fallback={null}>
+                        <Button
+                          variant="ghost"
+                          size="icon-sm"
+                          className="text-red-400 hover:text-red-300 hover:bg-red-500/10"
+                          onClick={() => openDelete(e)}
+                        >
+                          <Trash2 className="size-3.5" />
+                        </Button>
+                      </RoleGate>
                     </div>
                   </TableCell>
                 </TableRow>

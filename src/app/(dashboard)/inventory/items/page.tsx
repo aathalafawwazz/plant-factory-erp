@@ -11,6 +11,7 @@ import {
   formatDateLocale,
 } from "@/lib/translate-helpers";
 import { Button } from "@/components/ui/button";
+import { RoleGate } from "@/components/role-gate";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -313,14 +314,16 @@ function ItemsPageInner() {
             {t("inv.items_subtitle")}
           </p>
         </div>
-        <Button
-          size="sm"
-          className="h-9 bg-primary hover:bg-primary/90 text-white text-[13px]"
-          onClick={openAddForm}
-        >
-          <Plus className="h-3.5 w-3.5 mr-1.5" />
-          {t("inv.add_item")}
-        </Button>
+        <RoleGate roles={["admin", "operator"]} fallback={null}>
+          <Button
+            size="sm"
+            className="h-9 bg-primary hover:bg-primary/90 text-white text-[13px]"
+            onClick={openAddForm}
+          >
+            <Plus className="h-3.5 w-3.5 mr-1.5" />
+            {t("inv.add_item")}
+          </Button>
+        </RoleGate>
       </div>
 
       {/* Filters */}
@@ -460,16 +463,18 @@ function ItemsPageInner() {
                       )}
                     </div>
                   </div>
-                  <Button
-                    variant="ghost"
-                    size="icon-sm"
-                    onClick={() => {
-                      setDetailOpen(false);
-                      openEditForm(selected);
-                    }}
-                  >
-                    <Pencil className="size-4" />
-                  </Button>
+                  <RoleGate roles={["admin", "operator"]} fallback={null}>
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      onClick={() => {
+                        setDetailOpen(false);
+                        openEditForm(selected);
+                      }}
+                    >
+                      <Pencil className="size-4" />
+                    </Button>
+                  </RoleGate>
                 </div>
               </DialogHeader>
 
@@ -532,12 +537,14 @@ function ItemsPageInner() {
                     <h4 className="text-[13px] font-semibold text-foreground">
                       {t("inv.last_transactions")}
                     </h4>
-                    <Link
-                      href={`/inventory/transaksi?item_id=${selected.id}`}
-                      className="text-[11px] text-primary hover:underline"
-                    >
-                      {t("inv.add_transaction")} →
-                    </Link>
+                    <RoleGate roles={["admin", "operator"]} fallback={null}>
+                      <Link
+                        href={`/inventory/transaksi?item_id=${selected.id}`}
+                        className="text-[11px] text-primary hover:underline"
+                      >
+                        {t("inv.add_transaction")} →
+                      </Link>
+                    </RoleGate>
                   </div>
                   {loadingTxns ? (
                     <p className="text-[12px] text-muted-foreground">{t("common.loading")}</p>

@@ -4,6 +4,7 @@ import { useEffect, useState, useMemo } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useLang } from "@/lib/i18n";
 import { Button } from "@/components/ui/button";
+import { RoleGate } from "@/components/role-gate";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -418,13 +419,15 @@ export default function AbsensiPage() {
           </div>
         </div>
 
-        <Button
-          className="h-9 bg-primary text-white text-[12px] hover:bg-primary/90"
-          onClick={openManualDialog}
-        >
-          <Plus className="size-4 mr-1" />
-          {t("att.add_manual")}
-        </Button>
+        <RoleGate roles={["admin", "operator"]} fallback={null}>
+          <Button
+            className="h-9 bg-primary text-white text-[12px] hover:bg-primary/90"
+            onClick={openManualDialog}
+          >
+            <Plus className="size-4 mr-1" />
+            {t("att.add_manual")}
+          </Button>
+        </RoleGate>
       </div>
 
       {/* Attendance Logs */}
