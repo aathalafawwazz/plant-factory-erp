@@ -200,6 +200,20 @@
     scrollbar-width: thin;
   }
   .scrollbar-thin::-webkit-scrollbar {
+    width: 4px;
     height: 4px;
+  }
+  .scrollbar-thin::-webkit-scrollbar-thumb {
+    background: oklch(0.82 0.01 220 / 0.6);
+    border-radius: 2px;
+  }
+  .scrollbar-thin::-webkit-scrollbar-thumb:hover {
+    background: oklch(0.70 0.015 220 / 0.9);
+  }
+  .dark .scrollbar-thin::-webkit-scrollbar-thumb {
+    background: oklch(0.35 0.01 260 / 0.7);
+  }
+  .dark .scrollbar-thin::-webkit-scrollbar-thumb:hover {
+    background: oklch(0.45 0.01 260);
   }
 }

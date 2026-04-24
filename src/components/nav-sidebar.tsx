@@ -236,9 +236,9 @@ export function DesktopSidebar({ displayName }: { displayName: string }) {
         {collapsed ? <ChevronRight className="h-3.5 w-3.5" /> : <ChevronLeft className="h-3.5 w-3.5" />}
       </button>
 
-      <div className="flex flex-col flex-1">
-        {/* Brand */}
-        <div className="px-4 py-4 border-b border-border/50">
+      <div className="flex flex-col flex-1 min-h-0">
+        {/* Brand — fixed, does not scroll */}
+        <div className="shrink-0 px-4 py-4 border-b border-border/50">
           <div className={cn("flex items-center", collapsed ? "justify-center" : "gap-2.5")}>
             <Image
               src="/agrosphere-logo.svg"
@@ -268,8 +268,8 @@ export function DesktopSidebar({ displayName }: { displayName: string }) {
           </div>
         </div>
 
-        {/* Navigation */}
-        <nav className="flex-1 px-2 py-2 space-y-0.5 overflow-y-auto scrollbar-none">
+        {/* Navigation — scrolls independently when content exceeds viewport */}
+        <nav className="flex-1 min-h-0 px-2 py-2 pb-6 space-y-0.5 overflow-y-auto scrollbar-thin">
           {navItems.map((item) => {
             const Icon = item.icon;
             const active = isGroupActive(item, pathname);
