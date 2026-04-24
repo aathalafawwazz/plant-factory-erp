@@ -1,7 +1,7 @@
 # Sprint 2 — Role System + Audit Trail (APPLIED)
 
 **Tanggal:** 2026-04-24
-**Commits:** TBD (akan diisi setelah commit)
+**Commits:** `85547ba`
 **Status:** ✅ Applied to hosted Supabase `bmavkufkbdprcrllqojj` via SQL Editor. Next.js types sync + typecheck 0 error.
 
 ## Konteks
@@ -94,6 +94,6 @@ Saat 00017 di-run pertama kali ada 4 hal yang perlu dibenerin di draft:
 - [x] Apply migrations di Supabase (hosted)
 - [x] Update `src/lib/types/database.ts` manual sync
 - [x] Typecheck clean (0 error)
-- [ ] Commit migration + types
+- [x] Commit migration + types (`85547ba`)
 - [ ] Lanjut ke middleware + `<CurrentUserProvider>` + `<RoleGate>`
 - [ ] Landing page `/` + self-register routes
