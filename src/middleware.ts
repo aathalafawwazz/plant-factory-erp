@@ -1,6 +1,6 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
-import { resolveRouteGate } from "@/lib/auth-helpers";
+import { resolveRouteGate } from "@/lib/auth-types";
 import type { UserRole, ProfileStatus } from "@/lib/types/database";
 
 /**

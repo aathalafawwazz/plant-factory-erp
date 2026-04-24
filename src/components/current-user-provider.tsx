@@ -1,8 +1,8 @@
 "use client";
 
 import { createContext, useContext, type ReactNode } from "react";
-import type { CurrentUser, RoleSet } from "@/lib/auth-helpers";
-import { roleMatches } from "@/lib/auth-helpers";
+import type { CurrentUser, RoleSet } from "@/lib/auth-types";
+import { roleMatches } from "@/lib/auth-types";
 
 /**
  * Client-side context that carries the current user's identity, role,

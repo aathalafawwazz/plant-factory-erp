@@ -1,7 +1,7 @@
 "use client";
 
 import { type ReactNode } from "react";
-import type { RoleSet } from "@/lib/auth-helpers";
+import type { RoleSet } from "@/lib/auth-types";
 import { useHasRole, useCurrentUser } from "@/components/current-user-provider";
 
 interface RoleGateProps {
