@@ -4,6 +4,7 @@ import { useEffect, useState, useMemo } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
+import { RoleGate } from "@/components/role-gate";
 import { Card, CardContent } from "@/components/ui/card";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
@@ -194,9 +195,11 @@ export default function EnvironmentalLogPage() {
     <div>
       <div className="flex items-center justify-between mb-4">
         <h1 className="text-lg font-semibold text-foreground">{t("env.log_env")}</h1>
-        <Link href="/lingkungan/baru">
-          <Button className="h-9 bg-primary hover:bg-primary/90 text-white text-[13px]">{t("cult.record_new")}</Button>
-        </Link>
+        <RoleGate roles={["admin", "operator"]} fallback={null}>
+          <Link href="/lingkungan/baru">
+            <Button className="h-9 bg-primary hover:bg-primary/90 text-white text-[13px]">{t("cult.record_new")}</Button>
+          </Link>
+        </RoleGate>
       </div>
 
       {/* Parameter cards */}

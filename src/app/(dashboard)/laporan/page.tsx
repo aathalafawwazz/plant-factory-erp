@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, useMemo, useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
+import { RoleGate } from "@/components/role-gate";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -359,12 +360,15 @@ export default function ReportPage() {
             <FileText className="w-4 h-4 mr-1.5" />
             {t("report.auto")}
           </TabsTrigger>
-          <TabsTrigger value="manual" className="text-sm">
-            {t("report.manual")}
-          </TabsTrigger>
-          <TabsTrigger value="riwayat" className="text-sm">
-            {t("report.history")}
-          </TabsTrigger>
+          {/* Manual + History tabs are write/admin workflows — hide from viewers. */}
+          <RoleGate roles={["admin", "operator"]} fallback={null}>
+            <TabsTrigger value="manual" className="text-sm">
+              {t("report.manual")}
+            </TabsTrigger>
+            <TabsTrigger value="riwayat" className="text-sm">
+              {t("report.history")}
+            </TabsTrigger>
+          </RoleGate>
         </TabsList>
 
         {/* ============================================================ */}

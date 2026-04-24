@@ -4,6 +4,7 @@ import { useEffect, useState, useRef, useMemo } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
+import { RoleGate } from "@/components/role-gate";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -199,12 +200,14 @@ export function PlantLogSection({ hideInternalHeader = false }: PlantLogSectionP
         {hideInternalHeader ? <div /> : (
           <h2 className="text-[15px] font-semibold text-foreground">{t("plog.title")}</h2>
         )}
-        <Link href="/tanam/baru">
-          <Button className="h-9 bg-primary hover:bg-primary/90 text-white text-[13px]">
-            <Sprout className="mr-1.5 h-4 w-4" />
-            {t("plog.new_plant")}
-          </Button>
-        </Link>
+        <RoleGate roles={["admin", "operator"]} fallback={null}>
+          <Link href="/tanam/baru">
+            <Button className="h-9 bg-primary hover:bg-primary/90 text-white text-[13px]">
+              <Sprout className="mr-1.5 h-4 w-4" />
+              {t("plog.new_plant")}
+            </Button>
+          </Link>
+        </RoleGate>
       </div>
 
       {/* Toolbar: sort + view mode */}

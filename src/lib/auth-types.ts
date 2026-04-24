@@ -100,6 +100,11 @@ export const ROUTE_ROLE_GATES: Array<{
   { prefix: "/kunjungan",    allowed: ["admin", "operator", "viewer"],    description: "Visits" },
   // Research submission — only creators + staff. Supervisors review, not submit.
   { prefix: "/riset/baru",   allowed: ["admin", "operator", "researcher"], description: "Research submission" },
+  // Cultivation write routes — viewers read-only at page level, can't reach write screens.
+  { prefix: "/tanam/baru",       allowed: ["admin", "operator"],            description: "New planting" },
+  { prefix: "/lingkungan/baru",  allowed: ["admin", "operator"],            description: "New environment log" },
+  { prefix: "/nutrisi/baru",     allowed: ["admin", "operator"],            description: "New nutrient log" },
+  { prefix: "/komoditas/baru",   allowed: ["admin", "operator"],            description: "Add commodity" },
   // Admin console
   { prefix: "/settings/users", allowed: ["admin"],                        description: "User management" },
 ];

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { getServerI18n } from "@/lib/i18n-server";
+import { getCurrentUser } from "@/lib/auth-helpers";
 import { translateCommodity } from "@/lib/translate-helpers";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -16,6 +17,8 @@ import {
 export default async function CropCatalogPage() {
   const supabase = await createClient();
   const { t, lang } = await getServerI18n();
+  const currentUser = await getCurrentUser();
+  const canWrite = !!currentUser && ["admin", "operator"].includes(currentUser.role);
 
   const { data: crops } = await supabase
     .from("crop_catalog")
@@ -26,9 +29,11 @@ export default async function CropCatalogPage() {
     <div>
       <div className="flex items-center justify-between mb-4">
         <h1 className="text-lg font-semibold text-foreground">{t("cult.commodity_catalog")}</h1>
-        <Link href="/komoditas/baru">
-          <Button className="h-9 bg-primary text-white text-[13px] hover:bg-primary/90">{t("cult.add_commodity")}</Button>
-        </Link>
+        {canWrite && (
+          <Link href="/komoditas/baru">
+            <Button className="h-9 bg-primary text-white text-[13px] hover:bg-primary/90">{t("cult.add_commodity")}</Button>
+          </Link>
+        )}
       </div>
 
       {(!crops || crops.length === 0) ? (
@@ -97,9 +102,11 @@ export default async function CropCatalogPage() {
                     {crop.density_notes ?? "-"}
                   </TableCell>
                   <TableCell>
-                    <Link href={`/komoditas/${crop.id}`}>
-                      <Button variant="ghost" size="sm">{t("common.edit")}</Button>
-                    </Link>
+                    {canWrite && (
+                      <Link href={`/komoditas/${crop.id}`}>
+                        <Button variant="ghost" size="sm">{t("common.edit")}</Button>
+                      </Link>
+                    )}
                   </TableCell>
                 </TableRow>
               ))}

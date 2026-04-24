@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
+import { RoleGate } from "@/components/role-gate";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -498,7 +499,8 @@ export function RackMap({ holes, cycles, crops, researchAllocations = {} }: Rack
     <>
       {/* eslint-disable-next-line jsx-a11y/no-static-element-interactions */}
       <div onMouseUp={handleDragEnd} onMouseLeave={handleDragEnd}>
-      {/* Multi-select toolbar */}
+      {/* Multi-select toolbar — admin+operator only (bulk write actions) */}
+      <RoleGate roles={["admin", "operator"]} fallback={<div className="mb-3" />}>
       <div className="flex items-center justify-between mb-3">
         {multiSelectMode ? (
           <div className="flex items-center gap-2 flex-wrap">
@@ -556,6 +558,7 @@ export function RackMap({ holes, cycles, crops, researchAllocations = {} }: Rack
           </Button>
         )}
       </div>
+      </RoleGate>
 
       <Tabs defaultValue="A" className="w-full">
         <TabsList className="grid w-full grid-cols-2 h-10 bg-secondary border border-border/50">
