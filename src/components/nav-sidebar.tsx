@@ -1,12 +1,14 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { useTheme } from "next-themes";
 import { useLang } from "@/lib/i18n";
+import { useCurrentUser } from "@/components/current-user-provider";
+import type { UserRole } from "@/lib/types/database";
 import {
   LayoutDashboard, Grid3X3, Sprout, Scissors, Thermometer,
   Droplets, Leaf, FileBarChart, Users, LogOut, ChevronDown,
@@ -23,7 +25,13 @@ interface NavItem {
   labelKey: string;
   icon: LucideIcon;
   mobile?: boolean;
-  children?: { href: string; labelKey: string }[];
+  /**
+   * When set, only users with one of these roles see this item. Missing
+   * means "any authenticated active user". Keep in sync with
+   * ROUTE_ROLE_GATES in `@/lib/auth-helpers.ts`.
+   */
+  roles?: UserRole[];
+  children?: { href: string; labelKey: string; roles?: UserRole[] }[];
 }
 
 const NAV_ITEMS: NavItem[] = [
@@ -46,17 +54,19 @@ const NAV_ITEMS: NavItem[] = [
     href: "/inventory",
     labelKey: "nav.inventory",
     icon: Boxes,
+    roles: ["admin", "operator", "viewer"],
     children: [
       { href: "/inventory", labelKey: "nav.inventory_dashboard" },
       { href: "/inventory/items", labelKey: "nav.inventory_items" },
       { href: "/inventory/transaksi", labelKey: "nav.inventory_txn" },
-      { href: "/pengeluaran", labelKey: "nav.expenses" },
+      { href: "/pengeluaran", labelKey: "nav.expenses", roles: ["admin", "operator"] },
     ],
   },
   {
     href: "/hr",
     labelKey: "nav.hr",
     icon: Users,
+    roles: ["admin", "operator"],
     children: [
       { href: "/hr", labelKey: "nav.hr_dashboard" },
       { href: "/hr/absensi", labelKey: "nav.attendance" },
@@ -69,6 +79,7 @@ const NAV_ITEMS: NavItem[] = [
     labelKey: "nav.sales",
     icon: ShoppingCart,
     mobile: true,
+    roles: ["admin", "operator", "viewer"],
     children: [
       { href: "/sales", labelKey: "nav.sales_dashboard" },
       { href: "/sales/pelanggan", labelKey: "nav.customers" },
@@ -81,6 +92,16 @@ const NAV_ITEMS: NavItem[] = [
   { href: "/kunjungan", labelKey: "nav.visits", icon: UserCheck },
   { href: "/kalender", labelKey: "nav.calendar", icon: CalendarDays, mobile: true },
 ];
+
+function filterNavByRole(items: NavItem[], role: UserRole | undefined): NavItem[] {
+  if (!role) return [];
+  return items
+    .filter((i) => !i.roles || i.roles.includes(role))
+    .map((i) => ({
+      ...i,
+      children: i.children?.filter((c) => !c.roles || c.roles.includes(role)),
+    }));
+}
 
 const CULTIVATION_PATHS = ["/lubang", "/tanam", "/panen", "/lingkungan", "/nutrisi", "/komoditas", "/laporan"];
 
@@ -103,11 +124,20 @@ const MOBILE_ITEMS: { href: string; labelKey: string; icon: LucideIcon }[] = [
 export function BottomNav() {
   const pathname = usePathname();
   const { t } = useLang();
+  const user = useCurrentUser();
+  const visibleMobileItems = useMemo(() => {
+    if (!user) return [];
+    // Hide /sales shortcut for researcher/supervisor.
+    return MOBILE_ITEMS.filter((item) => {
+      if (item.href === "/sales") return ["admin", "operator", "viewer"].includes(user.role);
+      return true;
+    });
+  }, [user]);
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-50 border-t border-sidebar-border bg-sidebar/95 backdrop-blur-xl md:hidden">
       <div className="flex items-center justify-around h-16">
-        {MOBILE_ITEMS.map((item) => {
+        {visibleMobileItems.map((item) => {
           const Icon = item.icon;
           const isActive =
             item.href === "/"
@@ -146,6 +176,8 @@ export function BottomNav() {
 export function DesktopSidebar({ displayName }: { displayName: string }) {
   const pathname = usePathname();
   const { t } = useLang();
+  const user = useCurrentUser();
+  const navItems = useMemo(() => filterNavByRole(NAV_ITEMS, user?.role), [user?.role]);
 
   const [collapsed, setCollapsed] = useState(false);
 
@@ -177,7 +209,7 @@ export function DesktopSidebar({ displayName }: { displayName: string }) {
 
   const [openGroups, setOpenGroups] = useState<Set<string>>(
     new Set(
-      NAV_ITEMS.filter((i) => i.children && isGroupActive(i, pathname)).map((i) => i.labelKey)
+      navItems.filter((i) => i.children && isGroupActive(i, pathname)).map((i) => i.labelKey)
     )
   );
 
@@ -238,7 +270,7 @@ export function DesktopSidebar({ displayName }: { displayName: string }) {
 
         {/* Navigation */}
         <nav className="flex-1 px-2 py-2 space-y-0.5 overflow-y-auto scrollbar-none">
-          {NAV_ITEMS.map((item) => {
+          {navItems.map((item) => {
             const Icon = item.icon;
             const active = isGroupActive(item, pathname);
             const hasChildren = item.children && item.children.length > 0;

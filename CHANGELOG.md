@@ -8,7 +8,22 @@ Entri detail per rilis/sprint — termasuk rationale, migrasi DB, dan catatan up
 
 ## [Unreleased]
 
-Sprint 2 phase berikutnya: middleware + `<CurrentUserProvider>` + `<RoleGate>` + landing page + self-register routes.
+### Added
+
+- Middleware `src/middleware.ts` sekarang enforce: (a) unauthenticated → `/login`, (b) `status='pending'|'suspended'` → `/account-status`, (c) role-gated route prefix (via `ROUTE_ROLE_GATES` di `@/lib/auth-helpers`) → redirect ke `/` dengan `?denied=<path>`.
+- `<CurrentUserProvider>` + hook `useCurrentUser()` / `useHasRole()` — identity + role + status dibagi ke tree client tanpa round-trip extra.
+- `<RoleGate roles="..."|"any" fallback disableInstead allowAlumni>` — element-level hide/disable tombol/kolom sensitif.
+- `<RouteDenialToast>` — baca `?denied=` dari URL, toast peringatan, lalu clean URL. Mount di dashboard layout.
+- Halaman `/account-status` — lander untuk user `pending`/`suspended` dengan pesan yang jelas + logout.
+- Sidebar (desktop + bottom nav) sekarang filter menu per role — researcher tidak lihat HR/Inventory/Sales, viewer tidak lihat HR, dst.
+- `<RoleGate roles="admin">` diterapkan di: tombol Delete expense (`/pengeluaran`), tombol Generate Payroll (`/hr/penggajian`).
+- Helper `getCurrentUser()` di `@/lib/auth-helpers` — single server-side fetch identity + role + status.
+
+### Docs
+
+- [`docs/sprint-2-test-users.md`](docs/sprint-2-test-users.md) — panduan seed akun test (operator/researcher/supervisor/viewer/pending/suspended/alumni) + checklist per-role untuk verifikasi middleware + RLS.
+
+Sprint 2 phase berikutnya: landing page publik `/` + self-register routes (`/daftar/peneliti`, `/daftar/dosen`, `/tur`) + admin approval queue (`/settings/users`).
 
 ---
 

@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useLang } from "@/lib/i18n";
 import { Button } from "@/components/ui/button";
+import { RoleGate } from "@/components/role-gate";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -432,16 +433,18 @@ export default function PenggajianPage() {
             </SelectContent>
           </Select>
         </div>
-        <Button
-          className="h-9 bg-primary text-white text-[13px] hover:bg-primary/90"
-          onClick={generatePayroll}
-          disabled={generating}
-        >
-          <RefreshCw
-            className={`w-4 h-4 mr-1.5 ${generating ? "animate-spin" : ""}`}
-          />
-          {generating ? t("pay.processing") : t("pay.generate")}
-        </Button>
+        <RoleGate roles="admin" fallback={null}>
+          <Button
+            className="h-9 bg-primary text-white text-[13px] hover:bg-primary/90"
+            onClick={generatePayroll}
+            disabled={generating}
+          >
+            <RefreshCw
+              className={`w-4 h-4 mr-1.5 ${generating ? "animate-spin" : ""}`}
+            />
+            {generating ? t("pay.processing") : t("pay.generate")}
+          </Button>
+        </RoleGate>
         <Button
           variant="outline"
           className="h-9 text-[13px]"

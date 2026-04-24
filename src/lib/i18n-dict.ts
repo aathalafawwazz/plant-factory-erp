@@ -1373,6 +1373,19 @@ const dict: Record<string, Record<Lang, string>> = {
   "form.max_length":          { id: "Terlalu panjang",           en: "Too long" },
   "form.select_one":          { id: "Pilih salah satu",          en: "Select one" },
 
+  // ==================== ROUTE DENIAL (middleware redirect) ====================
+  "route_denied.title": { id: "Akses ditolak",        en: "Access denied" },
+  "route_denied.body":  { id: "Peran Anda tidak memiliki akses ke {path}. Anda diarahkan ke dashboard.", en: "Your role does not have access to {path}. You've been redirected to the dashboard." },
+
+  // ==================== ACCOUNT STATUS (pending / suspended landers) ====================
+  "account_status.pending_title":   { id: "Akun Anda menunggu persetujuan",   en: "Your account is awaiting approval" },
+  "account_status.pending_body":    { id: "Pendaftaran Anda sudah kami terima. Admin SARC akan meninjau dan mengaktifkan akun Anda. Anda akan dapat email ketika akun siap digunakan.", en: "We've received your registration. A SARC admin will review and activate your account. You'll receive an email once it's ready." },
+  "account_status.suspended_title": { id: "Akun Anda dinonaktifkan",          en: "Your account is suspended" },
+  "account_status.suspended_body":  { id: "Akses Anda dinonaktifkan oleh admin. Hubungi tim SARC jika Anda yakin ini keliru.", en: "Your access has been disabled by an administrator. Contact the SARC team if you believe this is a mistake." },
+  "account_status.role_label":      { id: "Peran",                            en: "Role" },
+  "account_status.status_label":    { id: "Status",                           en: "Status" },
+  "account_status.logout":          { id: "Keluar",                           en: "Log out" },
+
   // ==================== ERROR BOUNDARY ====================
   "error.page_title":         { id: "Terjadi kesalahan saat memuat halaman",    en: "Something went wrong loading this page" },
   "error.page_subtitle":      { id: "Coba muat ulang segmen. Jika berlanjut, kembali ke dashboard.", en: "Try reloading this section. If it keeps failing, head back to the dashboard." },

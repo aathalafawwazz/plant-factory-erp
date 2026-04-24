@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/client";
 import { useLang } from "@/lib/i18n";
 import { translateExpenseCategory, formatDateLocale } from "@/lib/translate-helpers";
 import { Button } from "@/components/ui/button";
+import { RoleGate } from "@/components/role-gate";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -743,13 +744,15 @@ export default function PengeluaranPage() {
               >
                 {t("common.cancel")}
               </Button>
-              <Button
-                className="h-9 bg-red-500 text-white text-[12px] hover:bg-red-500/90"
-                onClick={handleDelete}
-                disabled={deleting}
-              >
-                {deleting ? t("exp.deleting") : t("common.delete")}
-              </Button>
+              <RoleGate roles="admin" fallback={null}>
+                <Button
+                  className="h-9 bg-red-500 text-white text-[12px] hover:bg-red-500/90"
+                  onClick={handleDelete}
+                  disabled={deleting}
+                >
+                  {deleting ? t("exp.deleting") : t("common.delete")}
+                </Button>
+              </RoleGate>
             </div>
           </div>
         </DialogContent>

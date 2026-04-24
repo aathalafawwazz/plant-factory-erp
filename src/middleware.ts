@@ -1,5 +1,18 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
+import { resolveRouteGate } from "@/lib/auth-helpers";
+import type { UserRole, ProfileStatus } from "@/lib/types/database";
+
+/**
+ * Pages that a signed-in user with a *non-active* profile status is
+ * allowed to reach. Anything outside this list redirects to
+ * `/account-status` so they see a clear explanation instead of RLS
+ * failures on data fetch.
+ */
+const BLOCKED_STATUS_ALLOWLIST = new Set<string>([
+  "/account-status",
+  "/login",
+]);
 
 export async function middleware(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request });
@@ -31,21 +44,58 @@ export async function middleware(request: NextRequest) {
 
   const pathname = request.nextUrl.pathname;
   const isLoginPage = pathname === "/login";
-  // Route-route publik yang tidak perlu session (callback OAuth, confirm email, dsb).
   const isPublicAuthRoute = pathname.startsWith("/auth/");
+  // Public registration & landing routes (Sprint 2 Part 2 — added incrementally).
+  const isPublicLanding =
+    pathname === "/landing" ||
+    pathname.startsWith("/daftar/") ||
+    pathname === "/tur";
 
-  // Not logged in and trying to access protected route
-  if (!user && !isLoginPage && !isPublicAuthRoute) {
+  // ── 1. Unauthenticated + protected route → /login ───────────────
+  if (!user && !isLoginPage && !isPublicAuthRoute && !isPublicLanding) {
     const url = request.nextUrl.clone();
     url.pathname = "/login";
     return NextResponse.redirect(url);
   }
 
-  // Logged in and on login page — redirect to dashboard
+  // ── 2. Authenticated on login page → /  ──────────────────────────
   if (user && isLoginPage) {
     const url = request.nextUrl.clone();
     url.pathname = "/";
     return NextResponse.redirect(url);
+  }
+
+  // ── 3. Authenticated: enforce profile status + role gates ────────
+  if (user) {
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("role, status")
+      .eq("id", user.id)
+      .single();
+
+    // Missing profile row — let the page render (likely first-signup race).
+    if (profile) {
+      const status = profile.status as ProfileStatus;
+      const role = profile.role as UserRole;
+
+      // 3a. Non-active statuses get funnelled to /account-status.
+      if (status !== "active" && status !== "alumni") {
+        if (!BLOCKED_STATUS_ALLOWLIST.has(pathname)) {
+          const url = request.nextUrl.clone();
+          url.pathname = "/account-status";
+          return NextResponse.redirect(url);
+        }
+      }
+
+      // 3b. Role-gated routes: redirect to dashboard if role doesn't match.
+      const gate = resolveRouteGate(pathname);
+      if (gate && !gate.allowed.includes(role)) {
+        const url = request.nextUrl.clone();
+        url.pathname = "/";
+        url.searchParams.set("denied", pathname);
+        return NextResponse.redirect(url);
+      }
+    }
   }
 
   return supabaseResponse;
