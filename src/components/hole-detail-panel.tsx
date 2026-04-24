@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/client";
 import { uploadPlantingPhotos } from "@/lib/upload-planting-photos";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { RoleGate } from "@/components/role-gate";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
@@ -379,7 +380,8 @@ export function HoleDetailPanel({ hole, cycle, crops, open, onClose }: HoleDetai
                 </>
               )}
 
-              {/* Actions */}
+              {/* Actions — admin + operator only; viewers see read-only detail */}
+              <RoleGate roles={["admin", "operator"]} fallback={null}>
               <Separator className="bg-border/30" />
               <div>
                 <h4 className="text-[12px] font-medium text-muted-foreground uppercase tracking-wider mb-2">{t("hole.actions")}</h4>
@@ -581,6 +583,7 @@ export function HoleDetailPanel({ hole, cycle, crops, open, onClose }: HoleDetai
                   )}
                 </div>
               </div>
+              </RoleGate>
             </>
           ) : (
             /* ========== INLINE PLANTING FORM ========== */

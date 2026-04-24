@@ -386,14 +386,16 @@ export function PlantLogSection({ hideInternalHeader = false }: PlantLogSectionP
                         <DialogTitle className="text-base font-semibold text-foreground">
                           {getBatchDisplayName(batch)}
                         </DialogTitle>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-7 w-7 p-0 text-muted-foreground"
-                          onClick={() => setEditingName(true)}
-                        >
-                          <Pencil className="h-3 w-3" />
-                        </Button>
+                        <RoleGate roles={["admin", "operator"]} fallback={null}>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 w-7 p-0 text-muted-foreground"
+                            onClick={() => setEditingName(true)}
+                          >
+                            <Pencil className="h-3 w-3" />
+                          </Button>
+                        </RoleGate>
                       </>
                     )}
                   </div>
@@ -424,26 +426,28 @@ export function PlantLogSection({ hideInternalHeader = false }: PlantLogSectionP
                                 <span className="text-[13px] font-medium text-foreground">{holeName}</span>
                                 <StatusBadge status={cycle.status as HoleStatus} />
                               </div>
-                              <div className="flex gap-1">
-                                {cycle.status === "planted" && (
-                                  <Button size="sm" className="h-7 text-[11px] px-2 bg-[oklch(0.55_0.17_150)] hover:bg-[oklch(0.50_0.18_150)] dark:bg-[oklch(0.45_0.16_150)] dark:hover:bg-[oklch(0.50_0.18_150)] text-white"
-                                    onClick={(e) => { e.stopPropagation(); updateCycleStatus(cycle.id, holeId, "growing"); }}>
-                                    {t("plog.btn_grow")}
-                                  </Button>
-                                )}
-                                {cycle.status === "growing" && (
-                                  <Button size="sm" className="h-7 text-[11px] px-2 bg-[oklch(0.62_0.17_70)] hover:bg-[oklch(0.57_0.18_70)] dark:bg-[oklch(0.55_0.15_80)] dark:hover:bg-[oklch(0.60_0.17_80)] text-white"
-                                    onClick={(e) => { e.stopPropagation(); updateCycleStatus(cycle.id, holeId, "ready_harvest"); }}>
-                                    {t("plog.btn_ready")}
-                                  </Button>
-                                )}
-                                {cycle.status === "ready_harvest" && (
-                                  <Button size="sm" className="h-7 text-[11px] px-2 bg-[oklch(0.55_0.13_180)] hover:bg-[oklch(0.50_0.14_180)] dark:bg-[oklch(0.50_0.12_180)] dark:hover:bg-[oklch(0.55_0.14_180)] text-white"
-                                    onClick={(e) => { e.stopPropagation(); setHarvestCycleId(isHarvesting ? null : cycle.id); }}>
-                                    {isHarvesting ? t("plog.btn_cancel") : t("plog.btn_harvest")}
-                                  </Button>
-                                )}
-                              </div>
+                              <RoleGate roles={["admin", "operator"]} fallback={null}>
+                                <div className="flex gap-1">
+                                  {cycle.status === "planted" && (
+                                    <Button size="sm" className="h-7 text-[11px] px-2 bg-[oklch(0.55_0.17_150)] hover:bg-[oklch(0.50_0.18_150)] dark:bg-[oklch(0.45_0.16_150)] dark:hover:bg-[oklch(0.50_0.18_150)] text-white"
+                                      onClick={(e) => { e.stopPropagation(); updateCycleStatus(cycle.id, holeId, "growing"); }}>
+                                      {t("plog.btn_grow")}
+                                    </Button>
+                                  )}
+                                  {cycle.status === "growing" && (
+                                    <Button size="sm" className="h-7 text-[11px] px-2 bg-[oklch(0.62_0.17_70)] hover:bg-[oklch(0.57_0.18_70)] dark:bg-[oklch(0.55_0.15_80)] dark:hover:bg-[oklch(0.60_0.17_80)] text-white"
+                                      onClick={(e) => { e.stopPropagation(); updateCycleStatus(cycle.id, holeId, "ready_harvest"); }}>
+                                      {t("plog.btn_ready")}
+                                    </Button>
+                                  )}
+                                  {cycle.status === "ready_harvest" && (
+                                    <Button size="sm" className="h-7 text-[11px] px-2 bg-[oklch(0.55_0.13_180)] hover:bg-[oklch(0.50_0.14_180)] dark:bg-[oklch(0.50_0.12_180)] dark:hover:bg-[oklch(0.55_0.14_180)] text-white"
+                                      onClick={(e) => { e.stopPropagation(); setHarvestCycleId(isHarvesting ? null : cycle.id); }}>
+                                      {isHarvesting ? t("plog.btn_cancel") : t("plog.btn_harvest")}
+                                    </Button>
+                                  )}
+                                </div>
+                              </RoleGate>
                             </div>
 
                             {/* Inline harvest form */}
@@ -499,18 +503,20 @@ export function PlantLogSection({ hideInternalHeader = false }: PlantLogSectionP
                       <h4 className="text-[12px] font-medium text-muted-foreground uppercase tracking-wider">
                         {t("plog.photo_doc")} ({batchPhotos.length})
                       </h4>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="h-7 text-[11px] border-border/50"
-                        onClick={() => {
-                          setPhotoTargetBatch(batch.id);
-                          fileInputRef.current?.click();
-                        }}
-                      >
-                        <Camera className="h-3 w-3 mr-1" />
-                        {t("hole.take_photo")}
-                      </Button>
+                      <RoleGate roles={["admin", "operator"]} fallback={null}>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-7 text-[11px] border-border/50"
+                          onClick={() => {
+                            setPhotoTargetBatch(batch.id);
+                            fileInputRef.current?.click();
+                          }}
+                        >
+                          <Camera className="h-3 w-3 mr-1" />
+                          {t("hole.take_photo")}
+                        </Button>
+                      </RoleGate>
                     </div>
                     {batchPhotos.length > 0 ? (
                       <div className="grid grid-cols-3 gap-2">

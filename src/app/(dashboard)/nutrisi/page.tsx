@@ -464,9 +464,11 @@ export default function NutrientLogPage() {
                     </>
                   )}
 
-                  <Button variant="outline" className="h-9 text-[13px] w-full" onClick={() => setEditMode(true)}>
-                    {t("common.edit")}
-                  </Button>
+                  <RoleGate roles={["admin", "operator"]} fallback={null}>
+                    <Button variant="outline" className="h-9 text-[13px] w-full" onClick={() => setEditMode(true)}>
+                      {t("common.edit")}
+                    </Button>
+                  </RoleGate>
                 </div>
               )}
             </div>
