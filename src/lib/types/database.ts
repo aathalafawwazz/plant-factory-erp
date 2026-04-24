@@ -1,5 +1,8 @@
 export type HoleStatus = "empty" | "planted" | "growing" | "ready_harvest" | "harvested" | "maintenance";
-export type UserRole = "admin" | "operator" | "viewer" | "researcher";
+export type UserRole = "admin" | "operator" | "viewer" | "researcher" | "supervisor";
+export type ProfileStatus = "active" | "alumni" | "suspended" | "pending";
+export type SupervisorRole = "primary" | "co" | "external";
+export type AuditOp = "INSERT" | "UPDATE" | "DELETE";
 export type ResearchType = "skripsi" | "tesis" | "disertasi" | "dosen" | "eksternal" | "internal";
 export type ResearchStatus = "proposed" | "approved" | "active" | "paused" | "completed" | "cancelled";
 export type ResearchAttachmentKind = "photo" | "document" | "dataset" | "report";
@@ -23,18 +26,82 @@ export interface Database {
           id: string;
           display_name: string;
           role: UserRole;
+          status: ProfileStatus;
+          status_changed_at: string | null;
+          status_reason: string | null;
+          approved_by: string | null;
+          approved_at: string | null;
           created_at: string;
         };
         Insert: {
           id: string;
           display_name?: string;
           role?: UserRole;
+          status?: ProfileStatus;
+          status_changed_at?: string | null;
+          status_reason?: string | null;
+          approved_by?: string | null;
+          approved_at?: string | null;
           created_at?: string;
         };
         Update: {
           display_name?: string;
           role?: UserRole;
+          status?: ProfileStatus;
+          status_changed_at?: string | null;
+          status_reason?: string | null;
+          approved_by?: string | null;
+          approved_at?: string | null;
         };
+        Relationships: [];
+      };
+      research_supervisors: {
+        Row: {
+          id: number;
+          project_id: number;
+          supervisor_id: string;
+          role: SupervisorRole;
+          assigned_at: string;
+          assigned_by: string | null;
+          released_at: string | null;
+          notes: string | null;
+        };
+        Insert: {
+          id?: number;
+          project_id: number;
+          supervisor_id: string;
+          role?: SupervisorRole;
+          assigned_at?: string;
+          assigned_by?: string | null;
+          released_at?: string | null;
+          notes?: string | null;
+        };
+        Update: {
+          project_id?: number;
+          supervisor_id?: string;
+          role?: SupervisorRole;
+          assigned_at?: string;
+          assigned_by?: string | null;
+          released_at?: string | null;
+          notes?: string | null;
+        };
+        Relationships: [];
+      };
+      audit_logs: {
+        Row: {
+          id: number;
+          occurred_at: string;
+          user_id: string | null;
+          user_role: UserRole | null;
+          table_name: string;
+          row_pk: string;
+          op: AuditOp;
+          before_row: Record<string, unknown> | null;
+          after_row: Record<string, unknown> | null;
+          changed_cols: string[] | null;
+        };
+        Insert: never; // write-only via SECURITY DEFINER trigger
+        Update: never; // RLS denies
         Relationships: [];
       };
       crop_catalog: {
@@ -1075,6 +1142,8 @@ export interface Database {
       user_role: UserRole;
       cycle_status: CycleStatus;
       batch_status: BatchStatus;
+      profile_status: ProfileStatus;
+      supervisor_role: SupervisorRole;
     };
     CompositeTypes: Record<string, never>;
   };
@@ -1104,6 +1173,10 @@ export type ResearchMaterial = Database["public"]["Tables"]["research_materials"
 export type Visit = Database["public"]["Tables"]["visits"]["Row"];
 export type VisitContact = Database["public"]["Tables"]["visit_contacts"]["Row"];
 export type VisitAttachment = Database["public"]["Tables"]["visit_attachments"]["Row"];
+
+// Sprint 2 additions (role system + audit)
+export type ResearchSupervisor = Database["public"]["Tables"]["research_supervisors"]["Row"];
+export type AuditLog = Database["public"]["Tables"]["audit_logs"]["Row"];
 
 // ============================================================
 // Inventory & Expenses

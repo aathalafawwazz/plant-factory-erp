@@ -107,3 +107,14 @@ The hook only runs `tsc --noEmit` when staged changes include `.ts`/`.tsx`. Skip
 - **Keep existing behaviour when translating** — DB enum string values (`.eq("status", "active")`, chart axis data keys) stay in English code, only user-visible display strings get `t()`.
 - **Status arrays** like `VISUAL_CONDITIONS` keep `label` AND `labelKey` both. `label` is the legacy ID fallback; new code reads `labelKey` via `t()`.
 - **Prefer tokens over hex** — if you need a one-off colour, add it with a `dark:` variant. Audit before claiming a theme polish done.
+
+## Changelog discipline (required)
+
+Every meaningful feature, schema change, or fix lands with a changelog entry.
+
+1. **Always update [`CHANGELOG.md`](CHANGELOG.md)** under `## [Unreleased]` with a 1-line bullet in the right category (Added / Changed / Fixed / Infrastructure).
+2. **Non-trivial work** (sprint milestone, DB migration, new module, breaking change) — also drop a detail file in [`docs/changelog/`](docs/changelog/) following the template in that folder's README. Link to it from the root `CHANGELOG.md` bullet.
+3. On release/sprint close, rename `[Unreleased]` to `[<sprint-name>] — <date>` and start a new empty Unreleased.
+4. Reference the changelog file slug in commit messages when the change is big enough to have one.
+
+Trivial work (typo, copy polish, one-line CSS tweak) — bullet in root CHANGELOG only, no detail file needed.
