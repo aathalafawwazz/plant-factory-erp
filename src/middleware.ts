@@ -31,6 +31,13 @@ export async function middleware(request: NextRequest) {
 }
 
 async function runMiddleware(request: NextRequest) {
+  const pathname0 = request.nextUrl.pathname;
+  // Short-circuit for API + asset paths so we never even touch Supabase
+  // for them. Keeps `/api/health` reachable during cold-start / outage.
+  if (pathname0.startsWith("/api/")) {
+    return NextResponse.next({ request });
+  }
+
   // Sanity check env vars early — without them createServerClient throws an
   // opaque error that Vercel surfaces as MIDDLEWARE_INVOCATION_FAILED. Better
   // to log a clear message and let the request through (the page itself will
@@ -64,7 +71,7 @@ async function runMiddleware(request: NextRequest) {
     },
   });
 
-  const pathname = request.nextUrl.pathname;
+  const pathname = pathname0;
   const isLoginPage = pathname === "/login";
   const isPublicAuthRoute = pathname.startsWith("/auth/");
   // Public registration & landing routes (Sprint 2 Part 2 — added incrementally).
