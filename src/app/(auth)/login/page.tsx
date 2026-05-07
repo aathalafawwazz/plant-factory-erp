@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, Suspense } from "react";
 import Image from "next/image";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
@@ -15,7 +15,12 @@ import {
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
-export default function LoginPage() {
+// Inner component holds all the auth logic and form state. We split it out
+// so the default export can wrap it in <Suspense>, which Next.js 16 requires
+// whenever `useSearchParams()` is called from a client component that gets
+// statically prerendered (the build otherwise bails out with the
+// "missing-suspense-with-csr-bailout" error).
+function LoginPageInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const supabase = createClient();
@@ -327,6 +332,19 @@ export default function LoginPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+// Default export — wraps the inner component in Suspense so Next.js 16
+// can statically prerender this page even though `useSearchParams()` is
+// used inside. The fallback is a tiny loading shell that matches the page
+// background so users don't see a flash of empty content while the search
+// params resolve on the client.
+export default function LoginPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-background" />}>
+      <LoginPageInner />
+    </Suspense>
   );
 }
 
