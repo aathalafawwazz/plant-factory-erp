@@ -14,10 +14,17 @@ import {
   Droplets, Leaf, FileBarChart, Users, LogOut, ChevronDown,
   ChevronLeft, ChevronRight,
   Clock, BarChart3, Wallet, ShoppingCart, Sun, Moon, Monitor, CalendarDays,
-  Boxes, Receipt, FlaskConical, UserCheck,
+  Boxes, Receipt, FlaskConical, UserCheck, MoreHorizontal,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from "@/components/ui/sheet";
 import type { LucideIcon } from "lucide-react";
 
 interface NavItem {
@@ -132,6 +139,8 @@ export function BottomNav() {
   const pathname = usePathname();
   const { t } = useLang();
   const user = useCurrentUser();
+  const [moreOpen, setMoreOpen] = useState(false);
+
   const visibleMobileItems = useMemo(() => {
     if (!user) return [];
     return MOBILE_ITEMS.filter((item) => {
@@ -141,9 +150,14 @@ export function BottomNav() {
     });
   }, [user]);
 
+  // Full role-filtered nav for the "More" sheet so mobile users can reach
+  // every menu (Inventory, HR, Research, Visits, etc.) — not just the four
+  // primary ones pinned to the bottom bar.
+  const fullNavItems = useMemo(() => filterNavByRole(NAV_ITEMS, user?.role), [user?.role]);
+
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-50 border-t border-sidebar-border bg-sidebar/95 backdrop-blur-xl md:hidden">
-      <div className="flex items-center justify-around h-16">
+      <div className="flex items-stretch justify-around h-16">
         {visibleMobileItems.map((item) => {
           const Icon = item.icon;
           const isActive =
@@ -157,7 +171,7 @@ export function BottomNav() {
               key={item.href}
               href={item.href}
               className={cn(
-                "flex flex-col items-center justify-center shrink-0 w-[72px] py-2 transition-all",
+                "flex flex-1 min-w-0 flex-col items-center justify-center py-2 transition-all",
                 isActive
                   ? "text-primary"
                   : "text-muted-foreground hover:text-foreground"
@@ -175,8 +189,167 @@ export function BottomNav() {
             </Link>
           );
         })}
+
+        <Sheet open={moreOpen} onOpenChange={setMoreOpen}>
+          <SheetTrigger
+            render={
+              <button
+                type="button"
+                aria-label={t("nav.more")}
+                className={cn(
+                  "flex flex-1 min-w-0 flex-col items-center justify-center py-2 transition-all",
+                  moreOpen
+                    ? "text-primary"
+                    : "text-muted-foreground hover:text-foreground"
+                )}
+              />
+            }
+          >
+            <MoreHorizontal className="h-5 w-5 shrink-0" strokeWidth={moreOpen ? 2.5 : 1.5} />
+            <span
+              className={cn(
+                "text-[10px] mt-1 leading-tight text-center truncate w-full px-1",
+                moreOpen ? "font-semibold" : "font-normal"
+              )}
+            >
+              {t("nav.more")}
+            </span>
+          </SheetTrigger>
+          <SheetContent
+            side="bottom"
+            className="max-h-[85vh] rounded-t-2xl bg-sidebar text-sidebar-foreground"
+          >
+            <SheetHeader className="border-b border-sidebar-border">
+              <SheetTitle>{t("nav.all_menus")}</SheetTitle>
+            </SheetHeader>
+            <div className="flex-1 min-h-0 overflow-y-auto px-2 pb-6 pt-1 scrollbar-thin">
+              <MobileMenuList
+                items={fullNavItems}
+                pathname={pathname}
+                onNavigate={() => setMoreOpen(false)}
+                t={t}
+              />
+            </div>
+          </SheetContent>
+        </Sheet>
       </div>
     </nav>
+  );
+}
+
+function MobileMenuList({
+  items,
+  pathname,
+  onNavigate,
+  t,
+}: {
+  items: NavItem[];
+  pathname: string;
+  onNavigate: () => void;
+  t: (key: string) => string;
+}) {
+  const [openGroups, setOpenGroups] = useState<Set<string>>(
+    () =>
+      new Set(
+        items.filter((i) => i.children && isGroupActive(i, pathname)).map((i) => i.labelKey)
+      )
+  );
+
+  function toggleGroup(key: string) {
+    setOpenGroups((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  }
+
+  return (
+    <div className="space-y-0.5">
+      {items.map((item) => {
+        const Icon = item.icon;
+        const active = isGroupActive(item, pathname);
+        const hasChildren = item.children && item.children.length > 0;
+        const isExpanded = openGroups.has(item.labelKey);
+
+        if (hasChildren) {
+          return (
+            <div key={item.labelKey}>
+              <button
+                type="button"
+                onClick={() => toggleGroup(item.labelKey)}
+                className={cn(
+                  "flex items-center justify-between w-full px-3 py-2.5 rounded-md text-[14px] transition-all",
+                  active
+                    ? "bg-primary/15 text-primary font-medium"
+                    : "text-muted-foreground hover:bg-secondary hover:text-foreground"
+                )}
+              >
+                <div className="flex items-center gap-3">
+                  <Icon
+                    className={cn(
+                      "h-5 w-5 shrink-0",
+                      active ? "text-primary" : "text-muted-foreground"
+                    )}
+                  />
+                  <span>{t(item.labelKey)}</span>
+                </div>
+                <ChevronDown
+                  className={cn(
+                    "h-4 w-4 text-muted-foreground transition-transform",
+                    isExpanded && "rotate-180"
+                  )}
+                />
+              </button>
+              {isExpanded && (
+                <div className="ml-5 pl-3 border-l border-border/30 mt-0.5 space-y-0.5">
+                  {item.children!.map((child) => {
+                    const childActive = pathname === child.href;
+                    return (
+                      <Link
+                        key={child.href}
+                        href={child.href}
+                        onClick={onNavigate}
+                        className={cn(
+                          "block px-3 py-2 rounded-md text-[13px] transition-all",
+                          childActive
+                            ? "bg-primary/15 text-primary font-medium"
+                            : "text-muted-foreground hover:bg-secondary hover:text-foreground"
+                        )}
+                      >
+                        {t(child.labelKey)}
+                      </Link>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          );
+        }
+
+        return (
+          <Link
+            key={item.href}
+            href={item.href}
+            onClick={onNavigate}
+            className={cn(
+              "flex items-center gap-3 px-3 py-2.5 rounded-md text-[14px] transition-all",
+              active
+                ? "bg-primary/15 text-primary font-medium"
+                : "text-muted-foreground hover:bg-secondary hover:text-foreground"
+            )}
+          >
+            <Icon
+              className={cn(
+                "h-5 w-5 shrink-0",
+                active ? "text-primary" : "text-muted-foreground"
+              )}
+            />
+            <span>{t(item.labelKey)}</span>
+          </Link>
+        );
+      })}
+    </div>
   );
 }
 

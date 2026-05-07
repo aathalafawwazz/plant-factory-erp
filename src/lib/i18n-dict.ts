@@ -39,6 +39,8 @@ const dict: Record<string, Record<Lang, string>> = {
   "nav.inventory_items":    { id: "Daftar Item",            en: "Items" },
   "nav.inventory_txn":      { id: "Transaksi Stok",         en: "Stock Transactions" },
   "nav.expenses":           { id: "Pengeluaran",            en: "Expenses" },
+  "nav.more":               { id: "Lainnya",                en: "More" },
+  "nav.all_menus":          { id: "Semua Menu",             en: "All Menus" },
   "nav.logout":             { id: "Keluar",                 en: "Log out" },
 
   // ==================== COMMON ====================

@@ -10,6 +10,7 @@ Entri detail per rilis/sprint — termasuk rationale, migrasi DB, dan catatan up
 
 ### Added
 
+- Bottom nav mobile sekarang punya tombol **More** (ikon `MoreHorizontal`) yang membuka bottom-sheet berisi seluruh menu (Inventory, HR, Research, Visits, dll.) — sebelumnya mobile hanya bisa akses 4 menu (Dashboard, Cultivation, Calendar, Sales). List di sheet di-filter per role memakai `filterNavByRole(NAV_ITEMS, role)` (sama seperti `<DesktopSidebar>`), grup ber-children bisa di-expand/collapse, dan tap link auto-close sheet. Key i18n baru: `nav.more`, `nav.all_menus`.
 - Middleware `src/middleware.ts` sekarang enforce: (a) unauthenticated → `/login`, (b) `status='pending'|'suspended'` → `/account-status`, (c) role-gated route prefix (via `ROUTE_ROLE_GATES` di `@/lib/auth-helpers`) → redirect ke `/` dengan `?denied=<path>`.
 - `<CurrentUserProvider>` + hook `useCurrentUser()` / `useHasRole()` — identity + role + status dibagi ke tree client tanpa round-trip extra.
 - `<RoleGate roles="..."|"any" fallback disableInstead allowAlumni>` — element-level hide/disable tombol/kolom sensitif.
